@@ -1,0 +1,20 @@
+C   INPUT FILES:
+C     UNIT 05     - Standard input (namelist "input")
+C     UNIT 11     - Binary file containing raw 1B AMSU-A data
+C     UNIT 12     - BUFR mnemonic table
+C     UNIT 21     - Binary file containing Ta to Tb coefficients
+C     UNIT 41     - Binary file containing topography information
+C                   used by function LANSEA
+C
+C           ***NOTE***
+C                   Function LANSEA assumes this information is in
+C                   a file named 'lowtopog.dat' which is local to
+C                   the working directory.
+C
+C   OUTPUT FILES:
+C     UNIT 06      - Printout
+C     UNIT 51      - Binary (IEEE) file containing decoded AMSU-A Tb
+C                    data
+C     UNIT 52      - BUFR file containing AMSU-A Tb data
+C     UNIT 53      - BUFR file containing AMSU-A Ta data
+
