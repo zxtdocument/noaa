@@ -926,6 +926,7 @@ ccccc          bdata(11)= rlocaz(i)
                bdata(13)= sfchgt(i)
                bdata(14)= sathgt
                adata(1:14) = bdata(1:14)
+               write(*,*) bdata(1)
 
                if(process_Tb.eq.'YES') then
                   if (ikeepb(i).eq.1) then
