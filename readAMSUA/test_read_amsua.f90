@@ -2,7 +2,6 @@
 
 !############################################################
 	 integer dn(15,30),hour
-!	 character filename*70
 	 character filename*42
 	 real wn(15),rad(15,30),bt(15,30),lightspeed
 	 real*4 second

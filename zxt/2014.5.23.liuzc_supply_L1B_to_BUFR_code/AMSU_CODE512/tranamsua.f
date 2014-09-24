@@ -117,8 +117,6 @@ C  ---------------------------------------
       namelist /input/ infile,outfile,coefile,compress,process_Tb,
      x                 process_Ta
 
-      common/switches/compress,process_Tb,process_Ta,i512
-
 C  Set I/O unit numbers
 C  --------------------
 
@@ -126,7 +124,13 @@ C  --------------------
       data lunin, luncof / 11, 21 /
       data lunout        / 51 /
 
-      data myoutfile        / 100 /
+      data myoutTb        / 101 /
+      data myoutTa        / 102 /
+      data myoutRad        / 103 /
+
+      common/switches/compress,process_Tb,process_Ta,i512,
+     &                myoutTa,myoutTb,myoutRad
+
 
       call w3tagb('BUFR_TRANAMSUA',2005,0172,0068,'NP22')
 
@@ -145,7 +149,9 @@ C  Open unit to output IEEE file
 C  -----------------------------
 
       open(lunout,file=outfile,form='unformatted')
-      open(myoutfile,file="TbASCII.txt")
+      open(myoutTb,file="TbASCII.txt")
+      open(myoutTa,file="TaASCII.txt")
+      open(myoutRad,file="RadASCII.txt")
 
 C  Read/decode/output data records scan by scan
 C  --------------------------------------------
@@ -251,6 +257,7 @@ C  -----------------
 
       integer stdout
       integer(8) itime
+      integer i,j,k
       integer idt(nid),ndt(nnd)
       integer ichan(mch),lndsea(mpos),ikeepb(mpos),ikeepa(mpos)
       integer imx(nset),jmx(nset),ibadc(mch)
@@ -265,7 +272,7 @@ C  -----------------
       real(real_64) cfrq0(mch)
       real(real_64) rad(mch,mpos),tb(mch,mpos),sfchgt(mpos)
       real(real_64) c0(mch),c1(mch),c2(mch)
-      real(real_32) bdata(ntot),adata(ntot)
+      real(real_32) bdata(ntot),adata(ntot),raddata(ntot)
       real(real_64) f0(mpos,mch),f1(mpos,mch),f2(mpos,mch)
       real(real_64) eta(mch),tref(mch),badr(mch),badtb(mch),dt(mch)
       real(real_64) badta(mch)
@@ -275,7 +282,8 @@ C  --------------------
 
       equivalence (kbuf(1),jbuf(1))
 
-      common/switches/compress,process_Tb,process_Ta,i512
+      common/switches/compress,process_Tb,process_Ta,i512,
+     &                myoutTa,myoutTb,myoutRad
 
 C  Set information for different resolution map datasets
 C   (NOTE: Currently we do not use this information)
@@ -951,6 +959,14 @@ ccccc          bdata(11)= rlocaz(i)
                bdata(13)= sfchgt(i)
                bdata(14)= sathgt
                adata(1:14) = bdata(1:14)
+               raddata(1:14) = bdata(1:14)
+
+               if (ikeepb(i).eq.1) then
+                   do j = 1,mch
+                      raddata(14+j) = rad(j,i)
+                   end do
+                   write(myoutRad,*) (raddata(k),k=1,29)
+               endif
 
                if(process_Tb.eq.'YES') then
                   if (ikeepb(i).eq.1) then
@@ -962,7 +978,7 @@ ccccc          bdata(11)= rlocaz(i)
                      nrecb = nrecb + 1
                      write(lunout) (bdata(j),j=1,ntot)  ! ieee write
 
-                     call myout(bdata)
+                    write(myoutTb,*) (bdata(k),k=1,29)
                     call bufr1b(lubfrb,'NC021023',nreal,mch,bdata,nrepb)
                   endif
                endif
@@ -975,6 +991,7 @@ ccccc          bdata(11)= rlocaz(i)
                         adata(14+j) = ta(j,i)
                      end do
                      nreca = nreca + 1
+                    write(myoutTa,*) (adata(k),k=1,29)
                     call bufr1b(lubfra,'NC021123',nreal,mch,adata,nrepa)
                   endif
                endif
@@ -1068,7 +1085,9 @@ C  -----------
 
       close(lunin)
       close(lunout)
-      close(myoutfile)
+      close(myoutTa)
+      close(myoutTb)
+      close(myoutRad)
       close(lundx)
       call closbf(lubfrb)
       call closbf(lubfra)
@@ -1149,7 +1168,9 @@ C  ---------------------------------------
       close(luncof)
       close(lunin)
       close(lunout)
-      close(myoutfile)
+      close(myoutTa)
+      close(myoutTb)
+      close(myoutRad)
       close(lundx)
       call closbf(lubfrb)
       call closbf(lubfra)
@@ -1164,7 +1185,9 @@ C  ---------------------
       close(luncof)
       close(lunin)
       close(lunout)
-      close(myoutfile)
+      close(myoutTa)
+      close(myoutTb)
+      close(myoutRad)
       close(lundx)
       call closbf(lubfrb)
       call closbf(lubfra)
@@ -1634,14 +1657,6 @@ ccccc character*2 iarray(2)
       return
       end
 
-
-      SUBROUTINE MYOUT(tbdata)
-CCC Add by ZXT at 201409241444 for output the Tb ascii file
-        integer,parameter::real_32=selected_real_kind(6,37)
-        integer  i
-        real(real_32) :: tbdata(29)
-        write(100,*) (tbdata(i),i=1,29)
-      end
 
       SUBROUTINE MYRHEAD(LUNIN,i512)
 CCC Add by ZXT at 201409241444 for the 512bytes header
