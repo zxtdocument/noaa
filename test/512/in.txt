@@ -1,0 +1,2 @@
+&input
+infile="5a.bin" outfile="out" coefile="eta.txt" compress="NO" process_Tb="YES" process_Ta="YES"/

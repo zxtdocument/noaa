@@ -149,9 +149,12 @@ C  Open unit to output IEEE file
 C  -----------------------------
 
       open(lunout,file=outfile,form='unformatted')
+
+C-----ADD 201409241600 --------------------
       open(myoutTb,file="TbASCII.txt")
       open(myoutTa,file="TaASCII.txt")
       open(myoutRad,file="RadASCII.txt")
+C-----ADD 201409241600 --------------------
 
 C  Read/decode/output data records scan by scan
 C  --------------------------------------------
@@ -434,7 +437,7 @@ C  -------------------------------------------------
 C  Open unit to raw 1B AMSU-A data file - read header record, see if
 C   valid data type - if not, exit routine
 C  -----------------------------------------------------------------
-
+C  ---------modify 201409241430------------------------
       open(lunin,file=rawamsu,recl=512,
      &      access='direct',status='old')
 
@@ -452,6 +455,9 @@ C  -----------------------------------------------------------------
      &           (kbuf(i),i=(j-1)*512+1,j*512)
         end do
       end if
+
+C  ---------modify 201409241430------------------------
+
 
 C  Load header record into work array
 C  ----------------------------------
@@ -615,6 +621,7 @@ C**********************************************************************
 
          nri = nri + 1    ! Increment record counter
 
+C  ---------modify 201409241430------------------------
 C  Read data record and load into local work array
 C  -----------------------------------------------
          if(i512.eq.'YES') then
@@ -635,6 +642,7 @@ C  -----------------------------------------------
 
          nlo  = nlo + 1   ! Increment line counter
          line = nlo
+C  ---------modify 201409241430------------------------
 
 C  Extract scan line number, date/time, position, and type
 C  -------------------------------------------------------
@@ -961,12 +969,15 @@ ccccc          bdata(11)= rlocaz(i)
                adata(1:14) = bdata(1:14)
                raddata(1:14) = bdata(1:14)
 
+C--------------add 201409241430-----------------------------
                if (ikeepb(i).eq.1) then
                    do j = 1,mch
                       raddata(14+j) = rad(j,i)
                    end do
                    write(myoutRad,*) (raddata(k),k=1,29)
                endif
+C--------------add 201409241430-----------------------------
+
 
                if(process_Tb.eq.'YES') then
                   if (ikeepb(i).eq.1) then
@@ -978,7 +989,10 @@ ccccc          bdata(11)= rlocaz(i)
                      nrecb = nrecb + 1
                      write(lunout) (bdata(j),j=1,ntot)  ! ieee write
 
+
+C--------------add 201409241430-----------------------------
                     write(myoutTb,*) (bdata(k),k=1,29)
+C--------------add 201409241430-----------------------------
                     call bufr1b(lubfrb,'NC021023',nreal,mch,bdata,nrepb)
                   endif
                endif
@@ -991,7 +1005,10 @@ ccccc          bdata(11)= rlocaz(i)
                         adata(14+j) = ta(j,i)
                      end do
                      nreca = nreca + 1
+
+C--------------add 201409241430-----------------------------
                     write(myoutTa,*) (adata(k),k=1,29)
+C--------------add 201409241430-----------------------------
                     call bufr1b(lubfra,'NC021123',nreal,mch,adata,nrepa)
                   endif
                endif
@@ -1659,7 +1676,7 @@ ccccc character*2 iarray(2)
 
 
       SUBROUTINE MYRHEAD(LUNIN,i512)
-CCC Add by ZXT at 201409241444 for the 512bytes header
+CCC Add  at 201409241444 for the 512bytes header
         character*512 firstR
         character*512 secondR
         character*8 i512, ftype
@@ -1677,3 +1694,4 @@ CCC Add by ZXT at 201409241444 for the 512bytes header
           i512='NO'
         end if
       end
+CCC--------------------------------------------------
