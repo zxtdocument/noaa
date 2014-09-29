@@ -284,8 +284,10 @@ ccc-----add at 201409291000----------
 ccc-----add at 201409291000----------
 
       real(real_64) c0(mch),c1(mch),c2(mch)
+ccc-------------201409291400--------------------
       real(real_32) bdata(ntot),adata(ntot),raddata(ntot),
      &              countsdata(ntot)
+ccc-------------201409291400--------------------
       real(real_64) f0(mpos,mch),f1(mpos,mch),f2(mpos,mch)
       real(real_64) eta(mch),tref(mch),badr(mch),badtb(mch),dt(mch)
       real(real_64) badta(mch)
@@ -841,7 +843,9 @@ C  -------------
             do j = 3,mch
                jb0 = jb + (j-3)*16
                counts = lbyte(jb0,16,indat)
+C----add at 201409291000----------------
                counts_new(j,i)=counts
+C----add at 201409291000----------------
                rads   = c0(j) + (c1(j)+c2(j)*counts)*counts
                if (rads.lt.0.) then
                   nbadr   = nbadr + 1
@@ -858,7 +862,9 @@ C  ------------
             do j = 1,2
                jb0 = jb + (j-1)*16
                counts = lbyte(jb0,16,indat)
+C----add at 201409291000----------------
                counts_new(j,i)=counts
+C----add at 201409291000----------------
                rads   = c0(j) + (c1(j)+c2(j)*counts)*counts
                if (rads.lt.0.) then
                   nbadr   = nbadr + 1
@@ -979,6 +985,7 @@ ccccc          bdata(11)= rlocaz(i)
                bdata(13)= sfchgt(i)
                bdata(14)= sathgt
                adata(1:14) = bdata(1:14)
+c--------add 201409241400------------------------------
                raddata(1:14) = bdata(1:14)
                countsdata(1:14) = bdata(1:14)
 

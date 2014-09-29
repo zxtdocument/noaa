@@ -143,11 +143,9 @@ C  ---------------------------------------
 
       integer stdout
       character*500 infile,outfile,coefile
-      character*8  compress,process_Tb,process_Ta
+      character*8  compress,process_Tb,process_Ta,i512
       namelist /input/ infile,outfile,coefile,compress,process_Tb,
      x                 process_Ta
-
-      common/switches/compress,process_Tb,process_Ta
 
 C  Set I/O unit numbers
 C  --------------------
@@ -155,6 +153,18 @@ C  --------------------
       data lunam, stdout / 5,  6  /
       data lunin, luncof / 11, 21 /
       data lunout        / 51 /
+
+      data myoutTb        / 101 /
+      data myoutTa        / 102 /
+      data myoutRad        / 103 /
+      data myoutCounts        / 104 /
+      data myout512H       / 105 /
+
+c------201409291400--------------------
+      common/switches/compress,process_Tb,process_Ta,i512,
+     &                myoutTa,myoutTb,myoutRad,myoutCounts,myout512H
+c------201409291400--------------------
+
 
       call w3tagb('BUFR_TRANAMSUA',2013,0017,0068,'NP22')
 
@@ -173,6 +183,15 @@ C  Open unit to output IEEE file
 C  -----------------------------
 
       open(lunout,file=outfile,form='unformatted')
+
+C-----ADD 201409241600 --------------------
+      open(myoutTb,file="TbASCII.txt")
+      open(myoutTa,file="TaASCII.txt")
+      open(myoutRad,file="RadASCII.txt")
+      open(myoutCounts,file="CountsASCII.txt")
+      open(myout512H,file="512Header.txt")
+C-----ADD 201409241600 --------------------
+
 
 C  Read/decode/output data records scan by scan
 C  --------------------------------------------
@@ -282,7 +301,7 @@ C  -----------------
 
       character*1 kbuf(nbyte1)
       character*4 indat(nbyte4),jbuf(nbyte4)
-      character*8 compress,process_Tb,process_Ta
+      character*8 compress,process_Tb,process_Ta,i512
       character*40 mapfile(nset)
       character*500 rawamsu,coefile
 
@@ -301,8 +320,18 @@ C  -----------------
       real(real_64) cwave(mch),cnst1(mch),cnst2(mch)
       real(real_64) cfrq0(mch)
       real(real_64) rad(mch,mpos),tb(mch,mpos),sfchgt(mpos)
+
+ccc-----add at 201409291000----------
+      real(real_64) counts_new(mch,mpos)
+ccc-----add at 201409291000----------
+
+ccc-------------201409291400--------------------
+      real(real_32) bdata(ntot),adata(ntot),raddata(ntot),
+     &              countsdata(ntot)
+ccc-------------201409291400--------------------
+
       real(real_64) c0(mch),c1(mch),c2(mch)
-      real(real_32) bdata(ntot),adata(ntot),rinc(5),sctime1,bdata_ieee
+      real(real_32) rinc(5),sctime1,bdata_ieee
       real(real_64) f0(mpos,mch),f1(mpos,mch),f2(mpos,mch)
       real(real_64) eta(mch),tref(mch),badr(mch),badtb(mch),dt(mch)
       real(real_64) badta(mch)
@@ -312,7 +341,12 @@ C  --------------------
 
       equivalence (kbuf(1),jbuf(1))
 
-      common/switches/compress,process_Tb,process_Ta
+c------201409291400--------------------
+      common/switches/compress,process_Tb,process_Ta,i512,
+     &                myoutTa,myoutTb,myoutRad,myoutCounts,myout512H
+c------201409291400--------------------
+
+
 
 C  Set information for different resolution map datasets
 C   (NOTE: Currently we do not use this information)
@@ -363,6 +397,7 @@ C  ------------------------------------------------
       data stdout / 6/
       data lundx  /12/
       data lubfrb /52/, lubfra /53/
+      open(lundx,file="bufrtab.021")
 
       write(stdout,*)' '
       write(stdout,*)' BEGIN AMSU-A 1B DECODE'
@@ -463,11 +498,27 @@ C  -------------------------------------------------
 C  Open unit to raw 1B AMSU-A data file - read header record, see if
 C   valid data type - if not, exit routine
 C  -----------------------------------------------------------------
-
-      open(lunin,file=rawamsu,recl=nbyte1/rfac,
+C  ---------modify 201409241430------------------------
+      open(lunin,file=rawamsu,recl=512,
      &      access='direct',status='old')
+
       nri = 1
-      read (lunin,rec=nri,err=1900) (kbuf(i),i=1,nbyte1)
+      call myrhead(lunin,i512,myout512H)
+
+      if(i512.eq.'YES') then
+        do j=1,5
+            read (lunin,rec=(nri-1)*5+j+1,err=1900)
+     &            (kbuf(i),i=(j-1)*512+1,j*512)
+        end do
+      else
+        do j=1,5
+            read (lunin,rec=(nri-1)*5+j,err=1900)
+     &           (kbuf(i),i=(j-1)*512+1,j*512)
+        end do
+      end if
+
+C  ---------modify 201409241430------------------------
+
 
 C  Load header record into work array
 C  ----------------------------------
@@ -656,10 +707,21 @@ C**********************************************************************
 
          nri = nri + 1    ! Increment record counter
 
+
+C  ---------modify 201409241430------------------------
 C  Read data record and load into local work array
 C  -----------------------------------------------
-
-         read(lunin,rec=nri,err=1600) (kbuf(i),i=1,nbyte1)
+         if(i512.eq.'YES') then
+            do j=1,5
+               read (lunin,rec=(nri-1)*5+j+1,err=1600)
+     &              (kbuf(i),i=(j-1)*512+1,j*512)
+            end do
+         else
+            do j=1,5
+               read (lunin,rec=(nri-1)*5+j,err=1600)
+     &              (kbuf(i),i=(j-1)*512+1,j*512)
+            end do
+         end if
 
          do i = 1,nbyte4
             indat(i) = jbuf(i)
@@ -667,6 +729,7 @@ C  -----------------------------------------------
 
          nlo  = nlo + 1   ! Increment line counter
          line = nlo
+C  ---------modify 201409241430------------------------
 
 C  Extract scan line number, start date/time, position, and type
 C  -------------------------------------------------------------
@@ -864,6 +927,9 @@ C  -------------
             do j = 3,mch
                jb0 = jb + (j-3)*16
                counts = lbyte(jb0,16,indat)
+C----add at 201409291000----------------
+               counts_new(j,i)=counts
+C----add at 201409291000----------------
                rads   = c0(j) + (c1(j)+c2(j)*counts)*counts
                if (rads.lt.0.) then
                   nbadr   = nbadr + 1
@@ -880,6 +946,9 @@ C  ------------
             do j = 1,2
                jb0 = jb + (j-1)*16
                counts = lbyte(jb0,16,indat)
+C----add at 201409291000----------------
+               counts_new(j,i)=counts
+C----add at 201409291000----------------
                rads   = c0(j) + (c1(j)+c2(j)*counts)*counts
                if (rads.lt.0.) then
                   nbadr   = nbadr + 1
@@ -1034,6 +1103,29 @@ ccccc          bdata(13)= rlocaz(i)
                bdata(17)= sazimuth(i)             ! solar azimuth angle
                bdata(18)= aazimuth(i)             ! sat.  azimuth angle
                adata(1:18) = bdata(1:18)
+c--------add 201409241400------------------------------
+               raddata(1:18) = bdata(1:18)
+               countsdata(1:18) = bdata(1:18)
+
+C--------------add 201409241430-----------------------------
+               if (ikeepb(i).eq.1) then
+                   do j = 1,mch
+                      raddata(18+j) = rad(j,i)
+                   end do
+                   write(myoutRad,*) (raddata(k),k=1,33)
+               endif
+C--------------add 201409241430-----------------------------
+
+C--------------add 201409241430-----------------------------
+               if (ikeepb(i).eq.1) then
+                   do j = 1,mch
+                      countsdata(18+j) = counts_new(j,i)
+                   end do
+                   write(myoutCounts,*) (countsdata(k),k=1,33)
+               endif
+C--------------add 201409241430-----------------------------
+
+
 
                if(process_Tb.eq.'YES') then
                   if (ikeepb(i).eq.1) then
@@ -1052,6 +1144,10 @@ ccccc          bdata(13)= rlocaz(i)
 ccccc                write(99,*) (bdata(j),j=1,5),sctime1,
 ccccc+                (bdata(j),j=9,nreal-2),
 ccccc+                (bdata(j),j=nreal+1,ntot,nperchan) 
+C--------------add 201409241430-----------------------------
+                    write(myoutTb,*) (bdata(k),k=1,33)
+C--------------add 201409241430-----------------------------
+
                   endif
                endif
 
@@ -1065,6 +1161,9 @@ ccccc+                (bdata(j),j=nreal+1,ntot,nperchan)
                                                        ! temp corr
                      end do
                      nreca = nreca + 1
+C--------------add 201409241430-----------------------------
+                    write(myoutTa,*) (adata(k),k=1,33)
+C--------------add 201409241430-----------------------------
                     call bufr1b(lubfra,'NC021123',nreal,mch,adata,nrepa)
                   endif
                endif
@@ -1158,6 +1257,13 @@ C  -----------
 
       close(lunin)
       close(lunout)
+      close(myoutTa)
+      close(myoutTb)
+      close(myoutRad)
+      close(myoutCounts)
+      close(myout512H)
+      close(lundx)
+
       call closbf(lubfrb)
       call closbf(lubfra)
 
@@ -1236,6 +1342,13 @@ C  ---------------------------------------
       close(luncof)
       close(lunin)
       close(lunout)
+      close(myoutTa)
+      close(myoutCounts)
+      close(myoutTb)
+      close(myoutRad)
+      close(myout512H)
+      close(lundx)
+
       call closbf(lubfrb)
       call closbf(lubfra)
       call w3tage('BUFR_TRANAMSUA')
@@ -1249,6 +1362,13 @@ C  ---------------------
       close(luncof)
       close(lunin)
       close(lunout)
+      close(myoutTa)
+      close(myoutCounts)
+      close(myoutTb)
+      close(myoutRad)
+      close(myout512H)
+      close(lundx)
+
       call closbf(lubfrb)
       call closbf(lubfra)
       call w3tage('BUFR_TRANAMSUA')
@@ -1842,3 +1962,68 @@ C  -----------------------------------------------------------
 
       return
       end
+
+      SUBROUTINE MYRHEAD(LUNIN,i512,MYOUT512H)
+C------ Add  at 201409241444 for the 512bytes header
+        integer,parameter::real_32=selected_real_kind(6,37)
+        integer,parameter::real_64=selected_real_kind(15,307)
+
+        character*512 firstR
+        character*512 secondR
+        character*8 i512, ftype
+        integer lunin,i
+
+        character*6 HNeSNum
+        character*8 HClassNum,HSoftID
+        character*4 HYear, HLonFirst, HLonLast
+        character*3 HDay, HLatFirst, HLatLast,
+     &              HLatBegin,HLatEnd,HLonBegin,HLonEnd
+
+        character*1 HSiteC
+        character*2 HWordS
+        character*42 HDataSetName
+        character*20 HDataFormat
+        character*6 HSRec,HNRec
+
+        namelist /h512argc/ HNeSNum,HClassNum,HYear,HDay,
+     &                      HSiteC,HSoftID,HDataSetName,
+     &                      HLatBegin,HLatEnd,HLonBegin,HLonEnd,
+     &                      HWordS,HLatFirst,HLatLast,
+     &                      HLonFirst,HLonLast,
+     &                      HDataFormat,HSRec,HNRec
+
+
+        read(LUNIN,rec=1) firstR
+        read(LUNIN,rec=2) secondR
+
+        ftype=secondR(1:3)
+        
+        if ((ftype.eq.'CMS').or.(ftype.eq.'DSS').or.
+     &      (ftype.eq.'NSS').or.(ftype.eq.'UKM'))then
+          i512='YES'
+          HNeSNum=firstR(1:6)
+          HClassNum=firstR(7:14)
+          HYear=firstR(15:18)
+          HDay=firstR(19:21)
+          HSiteC=firstR(22:22)
+          HSoftID=firstR(23:30)
+          HDataSetName=firstR(31:72)
+          HLatBegin=firstR(76:78)
+          HLatEnd=firstR(79:81)
+          HLonBegin=firstR(82:85)
+          HLonEnd=firstR(86:89)
+          HWordS=firstR(118:119)
+          HLatFirst=firstR(148:150)
+          HLatLast=firstR(151:153)
+          HLonFirst=firstR(154:157)
+          HLonLast=firstR(158:161)
+          HDataFormat=firstR(162:181)
+          HSRec=firstR(182:187)
+          HNRec=firstR(188:193)
+          write(myout512H,h512argc)
+
+        else
+          i512='NO'
+        end if
+      end
+CCC--------------------------------------------------
