@@ -1,2 +1,2 @@
 &input
-infile="5a.bin" outfile="out" coefile="eta.txt" compress="NO" process_Tb="YES" process_Ta="YES"/
+infile="SATE_L1_MUS_MUTDS_MWB_ATOVS1B_GLB_V3-AMAX-NK-GC-20130101-0002-0127.bin" outfile="out" coefile="eta.txt" compress="NO" process_Tb="YES" process_Ta="YES"/

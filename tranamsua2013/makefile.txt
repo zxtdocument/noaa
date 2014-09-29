@@ -1,0 +1,36 @@
+SRCS = 	tranamsua.f bufr1b.f
+
+OBJS =  tranamsua.o bufr1b.o
+
+
+# Tunable parameters
+#
+# FC		Name of the fortran compiling system to use
+# LDFLAGS	Flags to the loader
+# LIBS		List of libraries
+# CMD		Name of the executable
+# PROFLIB	Library needed for profiling
+#
+FC = ncepxlf
+FFLAGS = -O3 -qstrict -qlist -qsource -bnoquiet
+LIBS = -L/nwprod/lib -lw3_4 -lbufr_v10.1.0_4_64
+CMD = bufr_tranamsua
+PROFLIB =
+
+# Lines from here on down should not need to be changed.  They are the
+# actual rules which make uses to build a.out.
+#
+all:		$(CMD)
+
+$(CMD):		$(OBJS)
+	$(FC) $(FFLAGS) -o $(@) $(OBJS) $(LIBS)
+
+
+clean:
+	-rm -f $(OBJS)
+
+clobber:	clean
+	-rm -f $(CMD) $(CMD).prof
+
+void:	clobber
+	-rm -f $(SRCS) makefile
