@@ -2,7 +2,7 @@
 
 * . * . * . * . * . * . * . * . * . * . * . * . * . * . * . * . * . * . * . * . 
      PROGRAM BUFR_TRANAMSUA HAS BEGUN. COMPILED 2005172.63     ORG: NP22
-     STARTING DATE-TIME  SEP 29,2014  11:16:26.943  272  MON   2456930
+     STARTING DATE-TIME  SEP 24,2014  10:28:28.509  267  WEN   2456925
 
 
 
@@ -10,12 +10,13 @@
 
  namelist input below
 &INPUT
- INFILE="a.GC                                                                            ",
+ INFILE="a.bin                                                                           ",
  OUTFILE="out                                                                             ",
  COEFILE="eta.txt                                                                         ",
  COMPRESS="NO      ",
  PROCESS_TB="YES     ",
  PROCESS_TA="YES     ",
+ I512="NO      ",
  /
   
   BEGIN AMSU-A 1B DECODE
@@ -685,65 +686,9 @@
 ***FAIL CAL :  nlo=   635 iline=   635 badcal= 0  0  0  0  0  0  0  0  0  0 48  0  0  0  0
 ***FAIL CAL :  nlo=   636 iline=   636 badcal= 0  0  0  0  0  0  0  0  0  0 48  0  0  0  0
 ***FAIL CAL :  nlo=   637 iline=   637 badcal= 0  0  0  0  0  0  0  0  0  0 48  0  0  0  0
-  
- Done reading raw 1b file
-  
- AMSU-A INGEST STATS:
-  no. scan lines           =            637         637         637
-  no. fail good qc         =              0
-  no. fail time qc         =              0
-  no. fail cali qc         =              0
-  no. fail loc qc          =              0
-  no. frame errors         =              0           0
-  no. scans bad qc         =              0
-  no. scans bad calibr.    =            637
-  no. scans bad mode       =              0
-  no. bad (lat,lon)        =              0
-  no. zero (lat,lon)       =              0
-  no. bad radiances        =          19110
-  no. bad calibration      =              0
-  no. scans with bad Tb    =              0
-  no. bad Tb values        =          38220
-  no. land/sea Tb obs      =           5050       14060
-  no. Tb recs written      =          19110
-  no. Tb BUFR rpts written =          19110
-  no. scans with bad Ta    =              0
-  no. bad Ta values        =              0
-  no. land/sea Ta obs      =           5050       14060
-  no. Ta recs written      =          19110
-  no. Ta BUFR rpts written =          19110
-  
- bad radiance,temperature counts per channel
-channel  bad rad   bad Tb    bad Ta
- 1            0.0       0.0       0.0
- 2            0.0       0.0       0.0
- 3            0.0       0.0       0.0
- 4            0.0       0.0       0.0
- 5            0.0       0.0       0.0
- 6            0.0       0.0       0.0
- 7            0.0       0.0       0.0
- 8            0.0       0.0       0.0
- 9            0.0       0.0       0.0
-10            0.0       0.0       0.0
-11            0.0   19110.0       0.0
-12            0.0       0.0       0.0
-13            0.0       0.0       0.0
-14        19110.0   19110.0       0.0
-15            0.0       0.0       0.0
- nbadr,nbadtb,nbadta=   19110.0000       38220.0000       0.00000000    
-  
-  AMSU-A 1B DECODE COMPLETED
-  
-
-OUTPUT Tb BUFR FILE MESSAGES   U N C O M P R E S S E D
-FIRST MESSAGE TYPE FOUND IS   21
+  *** error reading hdr record of file a.bin                                                                           
 
 
-OUTPUT Ta BUFR FILE MESSAGES   U N C O M P R E S S E D
-FIRST MESSAGE TYPE FOUND IS   21
-
-
-
-     ENDING DATE-TIME    SEP 29,2014  11:16:30.623  272  MON   2456930
+     ENDING DATE-TIME    SEP 24,2014  10:28:39.120  267  WEN   2456925
      PROGRAM BUFR_TRANAMSUA HAS ENDED.  IBM RS/6000 SP
 * . * . * . * . * . * . * . * . * . * . * . * . * . * . * . * . * . * . * . * . 

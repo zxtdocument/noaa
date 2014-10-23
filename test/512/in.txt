@@ -1,2 +1,2 @@
 &input
-infile="SATE_L1_MUS_MUTDS_MWB_ATOVS1B_GLB_V3-AMAX-NK-GC-20130101-0002-0127.bin" outfile="out" coefile="eta.txt" compress="NO" process_Tb="YES" process_Ta="YES"/
+infile="NSS.AMAX.NK.D14152.S0559.E0753.B8345758.WI" outfile="out" coefile="eta.txt" compress="NO" process_Tb="YES" process_Ta="YES"/
