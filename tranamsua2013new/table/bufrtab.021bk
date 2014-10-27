@@ -47,7 +47,6 @@
 | AIRSCORE | 350209 | AIRS PRINCIPAL COMPONENT FITS TO DATA SEQUENCE           |
 | AVCSEQ   | 350212 | AVHRR (GAC) CHANNEL SEQUENCE                             |
 | BRIT     | 361182 | BRIGHTNESS TEMPERATURE SEQUENCE                          |
-| BRITCSTC | 361183 | BRIGHTNESS TEMPERATURE SEQUENCE                          |
 | RADS     | 361191 | RADIANCE SEQUENCE                                        |
 | AMSRSPOT | 361192 | AMSR-E SPOT SEQUENCE (AQUA SATELLITE)                    |
 | AMSRCHAN | 361193 | AMSR-E CHANNEL SEQUENCE (AQUA SATELLITE)                 |
@@ -93,7 +92,6 @@
 | ORBN     | 005040 | ORBIT NUMBER                                             |
 | SLNM     | 005041 | SCAN LINE NUMBER                                         |
 | CHNM     | 005042 | CHANNEL NUMBER                                           |
-| CSTC     | 005044 | CHANNEL NUMBER                                           |
 | FOVN     | 005043 | BEAM POSITION (FIELD OF VIEW NUMBER)                     |
 |          |        |                                                          |
 | CLONH    | 006001 | LONGITUDE (HIGH ACCURACY)                                |
@@ -170,8 +168,8 @@
 |          |                                                                   |
 | NC021023 | YEAR     MNTH     DAYS     HOUR     MINU     SECO                 |
 | NC021023 | CLAT     CLON     SAID     SIID     FOVN     LSQL                 |
-| NC021023 | SAZA     SOZA     HOLS     HMSL     SOLAZI   BEARAZ               |
-| NC021023 | "BRITCSTC"15                                                      |
+| NC021023 | SAZA     SOZA     HOLS     202127   HMSL     202000               |
+| NC021023 | "BRIT"15                                                          |
 |          |                                                                   |
 | NC021024 | YEAR     MNTH     DAYS     HOUR     MINU     SECO                 |
 | NC021024 | CLAT     CLON     SAID     SIID     FOVN     LSQL                 |
@@ -251,7 +249,6 @@
 | NC021255 |          HSBSPOT  "HSBCHAN"5                                      |
 |          |                                                                   |
 | BRIT     | CHNM     TMBR                                                     |
-| BRITCSTC | CHNM     TMBR    CSTC                                             |
 | RADS     | SIDP RDTP  RDCM SCCF SCBW SPRD RDNE TMBRST CLDMNT NCLDMNT         |
 | RADS     | CLTP SDTB  PCCF                                                   |
 |          |                                                                   |
@@ -345,7 +342,6 @@
 | ORBN     |    0 |           0 |  24 | NUMERIC                  |-------------|
 | SLNM     |    0 |           0 |   8 | NUMERIC                  |-------------|
 | CHNM     |    0 |           0 |   6 | NUMERIC                  |-------------|
-| CSTC     |    0 |           0 |   6 | NUMERIC                  |-------------|
 | FOVN     |    0 |           0 |   8 | NUMERIC                  |-------------|
 | CLONH    |    5 |   -18000000 |  26 | DEGREES                  |-------------|
 | CLON     |    2 |      -18000 |  16 | DEGREES                  |-------------|
