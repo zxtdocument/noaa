@@ -1,0 +1,2 @@
+&input
+intxt="in.txt" outfile="out" coefile="eta.txt" compress="NO" process_Tb="YES" process_Ta="YES" beginT=20130101000000 endT=20140101000000 /

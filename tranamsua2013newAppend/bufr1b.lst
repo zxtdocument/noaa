@@ -1,0 +1,764 @@
+IBM XL Fortran for AIX, V12.1 (5724-U82) Version 12.01.0000.0001 --- /gpfs/c/nco/ops/nwtest/sorc/bufr_tranamsua.fd/bufr1b.f 02/05/13 15:43:06
+ 
+>>>>> OPTIONS SECTION <<<<<
+***   Options In Effect   ***
+  
+         ==  On / Off Options  ==
+         CR              DBG             ESCAPE          FULLPATH
+         I4              INLGLUE         NOLIBESSL       NOLIBPOSIX
+         OBJECT          SOURCE          STRICT          SWAPOMP
+         THREADED        UNWIND          NOZEROSIZE
+  
+         ==  Options Of Integer Type ==
+         ALIAS_SIZE(65536)     FIXED(72)             MAXMEM(-1)
+         OPTIMIZE(3)           SPILLSIZE(512)        STACKTEMP(0)
+  
+  
+         ==  Options Of Character Type  ==
+         64(LARGETYPE)         ALIAS(STD,INTPTR)     ALIGN(BINDC(POWER),STRUCT(NATURAL))
+         ARCH(PWR6)            AUTODBL(NONE)         DESCRIPTOR(V1)
+         DIRECTIVE(IBM*,IBMT)  ENUM()                FLAG(I,I)
+         FLOAT(RNDSNGL,MAF,FOLD,RNGCHK,SINGLE)
+         HALT(S)               IEEE(NEAR)            INTSIZE(4)
+         LIST()                LANGLVL(EXTENDED)     POSITION(APPENDOLD)
+         REALSIZE(4)           SAVE(ALL)             TUNE(PWR6)
+         UNROLL(AUTO)          XLF2003(NOPOLYMORPHIC,NOBOZLITARGS,NOSTOPEXCEPT,NOVOLATILE,NOAUTOREALLOC,OLDNANINF)
+         XLF77(NOLEADZERO,GEDIT77,NOBLANKPAD,OLDBOZ,INTARG,INTXOR,PERSISTENT,SOFTEOF)
+         XLF90(NOSIGNEDZERO,NOAUTODEALLOC,OLDPAD)
+  
+>>>>> SOURCE SECTION <<<<<
+          1 |C$$$  MAIN PROGRAM DOCUMENTATION BLOCK
+          2 |C
+          3 |C SUBPROGRAM: BUFR1B
+          4 |C   PRGMMR: KEYSER           ORG: NP22        DATE: 2007-02-09
+          5 |C
+          6 |C ABSTRACT: GENERATES BUFR REPORT FROM TOVS/ATOVS 1B DATA AND ENCODES
+          7 |C   IT INTO OUTPUT BUFR FILE.
+          8 |C
+          9 |C PROGRAM HISTORY LOG:
+         10 |C 2000-09-06  WOOLLEN  -- ORIGINAL CODE
+         11 |C 2002-02-11  WOOLLEN  -- MODIFICATIONS AND CORRECTIONS TO OUTPUT BUFR
+         12 |C       DATASET: "SAID" (0-01-007) CORRECTED TO PROPER WMO CODE TABLE
+         13 |C       VALUE (WAS 14 FOR NOAA-14, ETC.), "SIID" (0-02-019) REPLACED
+         14 |C       "SIDU" (0-02-021) WHICH DIDN'T SEEM TO BE CORRECT, "HMSL"
+         15 |C       (0-07-002) CORRECTED TO PROPER UNITS OF METERS (WAS BEING
+         16 |C       STORED IN KM), "LSQL" (0-08-012) CORRECTED TO PROPER WMO CODE
+         17 |C       TABLE VALUE (0-LAND/1-SEA) (WAS BACKWARDS), "TMBR" (0-12-163)
+         18 |C       CORRECTED TO PROPER UNITS OF K (WAS BEING STORED AS
+         19 |C       K + 273.15), CHANNEL 20 "TMBR" SET TO MISSING FOR HIRS-2 AND
+         20 |C       HIRS-3 TYPES
+         21 |C 2004-01-23  KEYSER   -- BASED ON NEW NAMELIST SWITCH "COMPRESS", NOW
+         22 |C       HAS OPTION TO WRITE COMPRESSED BUFR MESSAGES USING WRITCP
+         23 |C       INSTEAD OF WRITSB (REMOVES THE NEED FOR THE DOWNSTREAM PROGRAM
+         24 |C       BUFR_COMPRESS)
+         25 |C 2005-04-29  KEYSER   -- MODIFIED TO HANDLE PROCESSING OF AMSU-A
+         26 |C       ANTENNA TEMPERATURE (Ta) REPORTS INTO MESSAGE TYPE NC021123
+         27 |C 2005-06-21  KEYSER   -- MODIFIED TO HANDLE PROCESSING OF MHS AND
+         28 |C       HIRS-4 BRIGHTNESS TEMPERATURE (Tb) REPORTS INTO MESSAGE TYPES
+         29 |C       NC021027 AND NC021028, RESPECTIVELY
+         30 |C 2006-07-20  KEYSER   -- MODIFIED TO ENCODE THE FOLLOWING NEW
+         31 |C      INFORMATION INTO OUTPUT BUFR FILE FOR AMSU-A, AMSU-B, MHS,
+         32 |C      HIRS-3 AND HIRS-4 REPORTS: ESTIMATED SOLAR AZIMUTH (MNEMONIC
+         33 |C      SOLAZI) AND ESTIMATED SATELLITE AZIMUTH (MNEMONIC BEARAZ) FOR
+         34 |C      EACH SUBSET (RETRIEVAL); MODIFIED TO ENCODE COLD SPACE
+         35 |C      TEMPERATURE CORRECTION (MNEMONIC CSTC) FOR EACH CHANNEL IN
+         36 |C      SUBSET FOR AMSU-A, AMSU-B AND MHS REPORTS; INPUT ARGUMENT ARRAY
+         37 |C      "RDATA" NOW CONTAINS HOUR-OF-DAY, MINUTE-OF-HOUR AND SECOND-OF-
+         38 |C      MINUTE RATHER THAN ONLY SECOND-OF-DAY (SINCE THE HOUR, MINUTE
+         39 |C      AND SECOND ARE ACTUALLY ENCODED INTO BUFR, SECOND NOW ROUNDED TO
+         40 |C      NEAREST WHOLE SECOND RATHER THAN TRUNCATED)
+         41 |C 2007-02-09  KEYSER   -- MODIFIED, IN RESPONSE TO MAIN PROGRAM CHANGE,
+         42 |C      TO EXPECT BUFR CODE TABLE VALUE 0-01-007 IN WORD 1 OF INPUT
+         43 |C      ARRAY "RDATA", THE BUFR VALUE FOR SATELLITE ID, RATHER THAN THE
+         44 |C      ACTUAL SATELLITE NUMBER AS BEFORE - SINCE THIS IS THEN ENCODED
+         45 |C      DIRECTLY INTO BUFR THE CODE IS SIMPLIFIED
+         46 |C
+         47 |C USAGE: CALL BUFR1B(LUBFR,SUBSET,NREAL,NCHAN,RDATA,NREP)
+         48 |C
+         49 |C   INPUT ARGUMENTS:
+         50 |C     LUBFR  - LOGICAL UNIT FOR BUFR FILE
+         51 |C     SUBSET - BUFR MESSAGE TYPE FOR TOVS/ATOVS INSTRUMENT/TEMPERATURE
+         52 |C              TYPE COMBINATION
+         53 |C     NREAL  - NUMBER OF TOVS/ATOVS HEADER ELEMENTS
+         54 |C     NCHAN  - NUMBER OF TOVS/ATOVS CHANNELS
+         55 |C     RDATA  - REAL ARRAY WITH TOVS/ATOVS HEADER AND CHANNEL DATA
+         56 |C     NREP   - NUMBER OF BUFR REPORTS WRITTEN PRIOR TO THIS CALL TO
+         57 |C              BUFR1B
+         58 |C
+         59 |C   OUTPUT ARGUMENTS:
+         60 |C     NREP   - NUMBER OF BUFR REPORTS WRITTEN AFTER TO THIS CALL TO
+         61 |C              BUFR1B
+         62 |C
+         63 |C   SUBPROGRAMS CALLED:
+         64 |C
+         65 |C     LIBRARY:
+         66 |C       BUFRLIB  - OPENMB  WRITSB  WRITCP  UFBSEQ
+         67 |C
+         68 |C REMARKS:
+         69 |C
+         70 |C ATTRIBUTES:
+         71 |C   LANGUAGE: FORTRAN 90
+         72 |C   MACHINE:  IBM-SP
+         73 |C
+         74 |C$$$
+         75 |
+         76 |      SUBROUTINE BUFR1B(LUBFR,SUBSET,NREAL,NCHAN,RDATA,NREP)
+         77 |
+         78 |      PARAMETER(NDAT=100)
+         79 |
+         80 |      CHARACTER*8 SUBSET,COMPRESS,PROCESS_Tb,PROCESS_Ta
+         81 |      REAL*4      RDATA(*)
+         82 |      REAL*8      BUFRF(NDAT)
+         83 |
+         84 |      LOGICAL     HIRS
+         85 |
+         86 |      COMMON/SWITCHES/COMPRESS,PROCESS_Tb,PROCESS_Ta
+         87 |
+         88 |      DATA        BMISS       /10E10/
+         89 |
+         90 |C-----------------------------------------------------------------------
+         91 |C-----------------------------------------------------------------------
+         92 |
+         93 |C  ISOLATE THE DATE/TIME OF THIS REPORT
+         94 |C  ------------------------------------
+         95 |
+         96 |      IYR = RDATA(3)
+         97 |      IMO = RDATA(4)
+         98 |      IDY = RDATA(5)
+         99 |      IHR = RDATA(6)
+        100 |
+        101 |C  DETERMINE THE BUFR SATELLITE INSTRUMENT (CODE TABLE 0-02-019) BASED
+        102 |C   ON THE BUFR MESSAGE SUBTYPE
+        103 |C  ------------------------------------------------------------------
+        104 |
+        105 |      HIRS = (SUBSET.EQ.'NC021021' .OR. SUBSET.EQ.'NC021025' .OR.
+        106 |     .        SUBSET.EQ.'NC021028')
+        107 |      IF(SUBSET(7:8).EQ.'21') THEN
+        108 |         JCODE = 605   ! hirs-2 (NC021021) (Tb)
+        109 |      ELSE IF(SUBSET(7:8).EQ.'22') THEN
+        110 |         JCODE = 623   ! msu    (NC021022) (Tb)
+        111 |      ELSE IF(SUBSET(7:8).EQ.'23') THEN
+        112 |         JCODE = 570   ! amsu-a (NC021023) (Tb) or  (NC021123) (Ta)
+        113 |      ELSE IF(SUBSET(7:8).EQ.'24') THEN
+        114 |         JCODE = 574   ! amsu-b (NC021024) (Tb)
+        115 |      ELSE IF(SUBSET(7:8).EQ.'25') THEN
+        116 |         JCODE = 606   ! hirs-3 (NC021025) (Tb)
+        117 |      ELSE IF(SUBSET(7:8).EQ.'27') THEN
+        118 |         JCODE = 203   ! mhs    (NC021027) (Tb)
+        119 |      ELSE IF(SUBSET(7:8).EQ.'28') THEN
+        120 |         JCODE = 607   ! hirs-4 (NC021028) (Tb)
+        121 |      ELSE
+        122 |         WRITE(6,*) '** UNKNOWN SATELLITE INSTRUMENT',
+        123 |     .    (RDATA(III),III=1,NREAL)
+        124 |         CALL W3TAGE('BUFR_TRANHIRS2')
+        125 |         CALL ERREXIT(7)
+        126 |      ENDIF
+        127 |
+        128 |C  FLIP THE SENSE OF THE LAND/SEA FLAG
+        129 |C  -----------------------------------
+        130 |
+        131 |      IF(NINT(RDATA(9)).EQ.0) THEN
+        132 |         LANDSEA = 1
+        133 |      ELSE IF(NINT(RDATA(9)).EQ.1) THEN
+        134 |         LANDSEA = 0
+        135 |      ENDIF
+        136 |
+        137 |C  TRANSLATE THE 1B RECORD TO BUFR FORMAT
+        138 |C
+        139 |C   AMSU-A, AMSU-B, MHS:
+        140 |C  --------------------------------------------------------------
+        141 |C  NC021sss | YEAR     MNTH     DAYS     HOUR     MINU     SECO
+        142 |C  NC021sss | CLAT     CLON     SAID     SIID     FOVN     LSQL
+        143 |C  NC021sss | SAZA     SOZA     HOLS     HMSL     SOLAZI   BEARAZ
+        144 |C  NC021sss | "BRITCSTC"xx
+        145 |C  BRITCSTC | CHNM     TMBR     CSTC
+        146 |C  --------------------------------------------------------------
+        147 |C   where xx=15 for AMSU-A, =5 for AMSU-B/MHS
+        148 |C
+        149 |C   HIRS-3, HIRS-4:
+        150 |C  --------------------------------------------------------------
+        151 |C  NC021sss | YEAR     MNTH     DAYS     HOUR     MINU     SECO
+        152 |C  NC021sss | CLAT     CLON     SAID     SIID     FOVN     LSQL
+        153 |C  NC021sss | SAZA     SOZA     HOLS     HMSL     SOLAZI   BEARAZ
+        154 |C  NC021sss | "BRIT"20
+        155 |C  BRITCSTC | CHNM     TMBR
+        156 |C  --------------------------------------------------------------
+        157 |C
+        158 |C   HIRS-2, MSU:
+        159 |C  --------------------------------------------------------------
+        160 |C  NC021sss | YEAR     MNTH     DAYS     HOUR     MINU     SECO
+        161 |C  NC021sss | CLAT     CLON     SAID     SIID     FOVN     LSQL
+        162 |C  NC021sss | SAZA     SOZA     HOLS     HMSL
+        163 |C  NC021sss | "BRIT"xx
+        164 |C  BRIT     | CHNM     TMBR
+        165 |C  --------------------------------------------------------------
+        166 |C   where xx=20 for HIRS-2, =4 for MSU
+        167 |
+        168 |      NPERCHAN = 2
+        169 |      MREAL = 17
+        170 |
+        171 |      BUFRF( 1) = IYR
+        172 |      BUFRF( 2) = IMO
+        173 |      BUFRF( 3) = IDY
+        174 |      BUFRF( 4) = IHR
+        175 |      BUFRF( 5) = RDATA(7)
+        176 |      BUFRF( 6) = RDATA(8)
+        177 |      BUFRF( 7) = RDATA(11)
+        178 |      BUFRF( 8) = RDATA(12)
+        179 |      BUFRF( 9) = RDATA(1)
+        180 |      BUFRF(10) = JCODE
+        181 |      BUFRF(11) = RDATA(10)
+        182 |      BUFRF(12) = LANDSEA
+        183 |      BUFRF(13) = RDATA(13)
+        184 |      BUFRF(14) = RDATA(14)
+        185 |      BUFRF(15) = RDATA(15)
+        186 |      BUFRF(16) = RDATA(16)*1000.
+        187 |      IF(SUBSET(7:8).GE.'23') THEN
+        188 |         BUFRF(17) = RDATA(17)
+        189 |         BUFRF(18) = RDATA(18)
+        190 |         IF(.NOT.HIRS) NPERCHAN = 3
+        191 |         MREAL = 19
+        192 |      ENDIF
+        193 |
+        194 |      DO N=1,NCHAN
+        195 |         M = (N-1)*NPERCHAN
+        196 |         IF(SUBSET(7:8).EQ.'23' .OR. SUBSET(7:8).EQ.'24' .OR.
+        197 |     .      SUBSET(7:8).EQ.'27') THEN
+        198 |            BUFRF(MREAL+M) = (N)
+        199 |            BUFRF(MREAL+1+M) = RDATA(NREAL-1+N*2)
+        200 |            BUFRF(MREAL+2+M) = RDATA(NREAL-0+N*2)
+        201 |         ELSE
+        202 |            BUFRF(MREAL+M) = (N)
+        203 |            BUFRF(MREAL+1+M) = RDATA(NREAL+N)
+        204 |
+        205 |C  HIRS-2, HIRS-3 AND HIRS-4 chn 20 temperature is always missing
+        206 |C  --------------------------------------------------------------
+        207 |
+        208 |            IF(N.EQ.20 .AND. HIRS) BUFRF(MREAL+1+M) = BMISS
+        209 |         ENDIF
+        210 |      ENDDO
+        211 |
+        212 |C  WRITE THIS ARRAY INTO BUFR
+        213 |C  --------------------------
+        214 |
+        215 |      IDATE = IYR*1000000+IMO*10000+IDY*100+IHR
+        216 |      CALL OPENMB(LUBFR,SUBSET,IDATE)
+        217 |      CALL UFBSEQ(LUBFR,BUFRF,NDAT,1,IRET,SUBSET)
+        218 |      NREP = NREP + 1
+        219 |      IF(COMPRESS.EQ.'YES' .OR. COMPRESS.EQ.'yes') THEN
+        220 |         CALL WRITCP(LUBFR)
+        221 |      ELSE
+        222 |         CALL WRITSB(LUBFR)
+        223 |      ENDIF
+        224 |
+        225 |C  EXIT HERE
+        226 |C  ---------
+        227 |
+        228 |      RETURN
+        229 |      END
+** bufr1b   === End of Compilation 1 ===
+ 
+>>>>> OBJECT SECTION <<<<<
+ GPR's set/used:   ssus ssss ssss s---  ---- -sss ssss ssss
+ FPR's set/used:   ssss ssss ssss ss--  ---- ---- ---- ----
+ CCR's set/used:   ss-- -sss
+     | 000000                           PDEF     bufr1b
+    0|                                  PROC      .lubfr,.subset,.nreal,.nchan,.rdata,.nrep,%subset,gr3-gr9
+    0| 000000 mfspr    7C0802A6   1     LFLR      gr0=lr
+    0| 000004 std      FBE1FFF8   1     ST8       #stack(gr1,-8)=gr31
+    0| 000008 std      FBC1FFF0   1     ST8       #stack(gr1,-16)=gr30
+    0| 00000C std      FBA1FFE8   1     ST8       #stack(gr1,-24)=gr29
+    0| 000010 std      FB81FFE0   1     ST8       #stack(gr1,-32)=gr28
+    0| 000014 ori      609F0000   1     LR        gr31=gr4
+    0| 000018 ori      60FE0000   1     LR        gr30=gr7
+    0| 00001C std      FB61FFD8   1     ST8       #stack(gr1,-40)=gr27
+    0| 000020 std      FB41FFD0   1     ST8       #stack(gr1,-48)=gr26
+    0| 000024 ori      60BB0000   1     LR        gr27=gr5
+    0| 000028 ori      60DA0000   1     LR        gr26=gr6
+    0| 00002C std      FB21FFC8   1     ST8       #stack(gr1,-56)=gr25
+    0| 000030 std      FB01FFC0   1     ST8       #stack(gr1,-64)=gr24
+    0| 000034 ori      61190000   1     LR        gr25=gr8
+    0| 000038 std      FAE1FFB8   1     ST8       #stack(gr1,-72)=gr23
+    0| 00003C std      FAC1FFB0   1     ST8       #stack(gr1,-80)=gr22
+    0| 000040 std      FAA1FFA8   1     ST8       #stack(gr1,-88)=gr21
+    0| 000044 std      F8010010   1     ST8       #stack(gr1,16)=gr0
+   96| 000048 lfs      C0070008   1     LFS       fp0=rdata[](gr7,8)
+   99| 00004C lfs      C0270014   1     LFS       fp1=rdata[](gr7,20)
+    0| 000050 stdu     F821FE61   1     ST8U      gr1,#stack(gr1,-416)=gr1
+  105| 000054 ld       EB820008   1     L8        gr28=.+CONSTANT_AREA(gr2,0)
+   96| 000058 fctiwz   FC00001E   1     FCTIWZ    fp0=fp0
+   99| 00005C fctiwz   FC20081E   1     FCTIWZ    fp1=fp1
+   96| 000060 ld       EBA20010   1     L8        gr29=.$STATIC_BSS(gr2,0)
+   97| 000064 lfs      C047000C   1     LFS       fp2=rdata[](gr7,12)
+   97| 000068 fctiwz   FC60101E   1     FCTIWZ    fp3=fp2
+   98| 00006C lfs      C0470010   1     LFS       fp2=rdata[](gr7,16)
+    0| 000070 ori      60210000   1     XNOP      
+   96| 000074 stfd     D8010090   1     STFL      #MX_CONVF1_0(gr1,144)=fp0
+   99| 000078 stfd     D82100C0   1     STFL      #MX_CONVF1_3(gr1,192)=fp1
+    0| 00007C ori      60000000   1     NOP       
+    0| 000080 std      F8610138   1     ST8       #parameter_store0(gr1,312)=gr3
+   98| 000084 fctiwz   FC40101E   1     FCTIWZ    fp2=fp2
+   97| 000088 stfd     D86100A0   1     STFL      #MX_CONVF1_1(gr1,160)=fp3
+  105| 00008C ld       E8640000   1     L8        gr3=subset(gr4,0)
+  105| 000090 ld       E81C0040   1     L8        gr0=+CONSTANT_AREA(gr28,64)
+   98| 000094 stfd     D84100B0   1     STFL      #MX_CONVF1_2(gr1,176)=fp2
+    0| 000098 ori      60210000   1     XNOP      
+  105| 00009C cmpld    7C230040   1     CL8       cr0=gr3,gr0
+    0| 0000A0 ori      60210000   1     XNOP      
+   96| 0000A4 lwa      EB010096   1     L4A       gr24=#MX_CONVF1_0(gr1,148)
+   99| 0000A8 lwa      EAE100C6   1     L4A       gr23=#MX_CONVF1_3(gr1,196)
+  105| 0000AC bc       4182001C   0     BT        CL.1,cr0,0x4/eq ,taken=50%(0,0)
+  105| 0000B0 ld       E81C0048   2     L8        gr0=+CONSTANT_AREA(gr28,72)
+  105| 0000B4 cmpld    7C230040   2     CL8       cr0=gr3,gr0
+  105| 0000B8 bc       41820010   1     BT        CL.1,cr0,0x4/eq ,taken=50%(0,0)
+  105| 0000BC ld       E81C0050   1     L8        gr0=+CONSTANT_AREA(gr28,80)
+  105| 0000C0 cmpld    7C230040   2     CL8       cr0=gr3,gr0
+  105| 0000C4 bc       408205E0   1     BF        CL.2,cr0,0x4/eq ,taken=50%(0,0)
+  105|                              CL.1:
+  105| 0000C8 addi     3AC00001   1     LI        gr22=1
+  105| 0000CC addi     3AA00001   1     LI        gr21=1
+  105|                              CL.3:
+  107| 0000D0 lhz      A0040006   1     L2Z       gr0=subset(gr4,6)
+  107| 0000D4 cmplwi   28003231   2     CL4       cr0=gr0,12849
+    0| 0000D8 cmplwi   28803233   1     CL4       cr1=gr0,12851
+  107| 0000DC bc       4082047C   0     BF        CL.4,cr0,0x4/eq ,taken=50%(0,0)
+  108| 0000E0 addi     3880025D   1     LI        gr4=605
+  108| 0000E4 stw      909D0014   1     ST4Z      jcode(gr29,20)=gr4
+  126|                              CL.5:
+  131| 0000E8 lfs      C01E0020   1     LFS       fp0=rdata[](gr30,32)
+  131| 0000EC frin     FC000310   1     FRIN      fp0=fp0
+  131| 0000F0 fctiw    FC00001C   4     FCTIW     fp0=fp0,fcr
+  131| 0000F4 stfd     D80100D0   0     STFL      #MX_CONVF1_4(gr1,208)=fp0
+  131| 0000F8 lwa      E86100D6   0     L4A       gr3=#MX_CONVF1_4(gr1,212)
+    0| 0000FC ori      60000000   0     NOP       
+  131| 000100 cmpwi    2C030000   1     C4        cr0=gr3,0
+  131| 000104 bc       40820438   1     BF        CL.18,cr0,0x4/eq ,taken=50%(0,0)
+  132| 000108 stw      92DD001C   2     ST4Z      landsea(gr29,28)=gr22
+  132| 00010C addi     38E00001   1     LI        gr7=1
+  135|                              CL.19:
+  168| 000110 addi     38C00002   1     LI        gr6=2
+  180| 000114 extsw    7C8407B4   1     EXTS4     gr4=gr4
+  186| 000118 lfs      C01E003C   1     LFS       fp0=rdata[](gr30,60)
+  186| 00011C lfs      C03C0090   1     LFS       fp1=+CONSTANT_AREA(gr28,144)
+  172| 000120 lwa      E90100A6   1     L4A       gr8=#MX_CONVF1_1(gr1,164)
+    0| 000124 addi     38A0FFF0   1     LI        gr5=-16
+  186| 000128 fmuls    EC000072   1     MFS       fp0=fp0,fp1,fcr
+  176| 00012C lfs      C03E001C   1     LFS       fp1=rdata[](gr30,28)
+  171| 000130 std      FB0100E0   1     ST8       #MX_CONVF1_5(gr1,224)=gr24
+  176| 000134 stfd     D83D0060   1     STFL      <s67:d96:l8>(gr29,96)=fp1
+  172| 000138 std      F90100F0   1     ST8       #MX_CONVF1_6(gr1,240)=gr8
+  182| 00013C extsw    7CE807B4   1     EXTS4     gr8=gr7
+    0| 000140 addi     38E00088   1     LI        gr7=136
+  186| 000144 stfd     D81D00B0   1     STFL      <s67:d176:l8>(gr29,176)=fp0
+  180| 000148 std      F8810120   1     ST8       #MX_CONVF1_9(gr1,288)=gr4
+  182| 00014C std      F9010090   1     ST8       #MX_CONVF1_0(gr1,144)=gr8
+  173| 000150 lwa      E86100B6   1     L4A       gr3=#MX_CONVF1_2(gr1,180)
+  175| 000154 lfs      C05E0018   1     LFS       fp2=rdata[](gr30,24)
+  173| 000158 std      F8610100   1     ST8       #MX_CONVF1_7(gr1,256)=gr3
+  174| 00015C ori      62E30000   1     LR        gr3=gr23
+  175| 000160 stfd     D85D0058   1     STFL      <s67:d88:l8>(gr29,88)=fp2
+  177| 000164 lfs      C07E0028   1     LFS       fp3=rdata[](gr30,40)
+  177| 000168 stfd     D87D0068   1     STFL      <s67:d104:l8>(gr29,104)=fp3
+  178| 00016C lfs      C03E002C   1     LFS       fp1=rdata[](gr30,44)
+  178| 000170 stfd     D83D0070   1     STFL      <s67:d112:l8>(gr29,112)=fp1
+  174| 000174 std      F8610110   1     ST8       #MX_CONVF1_8(gr1,272)=gr3
+    0| 000178 ori      60000000   1     NOP       
+    0| 00017C ori      60210000   1     XNOP      
+  179| 000180 lfs      C05E0000   1     LFS       fp2=rdata[](gr30,0)
+  179| 000184 stfd     D85D0078   1     STFL      <s67:d120:l8>(gr29,120)=fp2
+  183| 000188 lfs      C07E0030   1     LFS       fp3=rdata[](gr30,48)
+  183| 00018C stfd     D87D0098   1     STFL      <s67:d152:l8>(gr29,152)=fp3
+  181| 000190 lfs      C03E0024   1     LFS       fp1=rdata[](gr30,36)
+  181| 000194 stfd     D83D0088   1     STFL      <s67:d136:l8>(gr29,136)=fp1
+  185| 000198 lfs      C05E0038   1     LFS       fp2=rdata[](gr30,56)
+  185| 00019C stfd     D85D00A8   1     STFL      <s67:d168:l8>(gr29,168)=fp2
+  171| 0001A0 lfd      C80100E0   1     LFL       fp0=#MX_CONVF1_5(gr1,224)
+    0| 0001A4 ori      60210000   1     XNOP      
+  184| 0001A8 lfs      C03E0034   1     LFS       fp1=rdata[](gr30,52)
+  184| 0001AC stfd     D83D00A0   1     STFL      <s67:d160:l8>(gr29,160)=fp1
+  171| 0001B0 fcfid    FC20069C   1     FCFID     fp1=fp0,fcr
+  172| 0001B4 lfd      C80100F0   1     LFL       fp0=#MX_CONVF1_6(gr1,240)
+  172| 0001B8 fcfid    FC00069C   1     FCFID     fp0=fp0,fcr
+  171| 0001BC stfd     D83D0038   1     STFL      <s67:d56:l8>(gr29,56)=fp1
+  172| 0001C0 stfd     D81D0040   1     STFL      <s67:d64:l8>(gr29,64)=fp0
+    0| 0001C4 ori      60210000   1     XNOP      
+  174| 0001C8 lfd      C8410110   1     LFL       fp2=#MX_CONVF1_8(gr1,272)
+  174| 0001CC fcfid    FC60169C   1     FCFID     fp3=fp2,fcr
+  182| 0001D0 lfd      C8410090   1     LFL       fp2=#MX_CONVF1_0(gr1,144)
+  174| 0001D4 stfd     D87D0050   1     STFL      <s67:d80:l8>(gr29,80)=fp3
+  180| 0001D8 lfd      C8210120   1     LFL       fp1=#MX_CONVF1_9(gr1,288)
+  182| 0001DC fcfid    FC40169C   1     FCFID     fp2=fp2,fcr
+  180| 0001E0 fcfid    FC200E9C   1     FCFID     fp1=fp1,fcr
+  173| 0001E4 lfd      C8010100   1     LFL       fp0=#MX_CONVF1_7(gr1,256)
+  182| 0001E8 stfd     D85D0090   1     STFL      <s67:d144:l8>(gr29,144)=fp2
+  173| 0001EC fcfid    FC00069C   1     FCFID     fp0=fp0,fcr
+  180| 0001F0 stfd     D83D0080   1     STFL      <s67:d128:l8>(gr29,128)=fp1
+  173| 0001F4 stfd     D81D0048   1     STFL      <s67:d72:l8>(gr29,72)=fp0
+  187| 0001F8 bc       41840028   0     BT        CL.21,cr1,0x8/llt,taken=50%(0,0)
+  190| 0001FC andi.    72A30001   2     RN4_R     gr3,cr0=gr21,0,0x1
+  189| 000200 lfs      C03E0044   1     LFS       fp1=rdata[](gr30,68)
+  189| 000204 stfd     D83D00C0   1     STFL      <s67:d192:l8>(gr29,192)=fp1
+  188| 000208 lfs      C01E0040   1     LFS       fp0=rdata[](gr30,64)
+  188| 00020C stfd     D81D00B8   1     STFL      <s67:d184:l8>(gr29,184)=fp0
+  190| 000210 bc       4082000C   0     BF        CL.22,cr0,0x4/eq ,taken=50%(0,0)
+  190| 000214 addi     38C00003   2     LI        gr6=3
+    0| 000218 addi     38A0FFE8   1     LI        gr5=-24
+  190|                              CL.22:
+    0| 00021C addi     38E00098   1     LI        gr7=152
+  192|                              CL.21:
+  194| 000220 lwz      807A0000   1     L4Z       gr3=nchan(gr26,0)
+  194| 000224 addi     38800001   1     LI        gr4=1
+  194| 000228 cmpwi    2C030000   1     C4        cr0=gr3,0
+  194| 00022C bc       40810144   1     BF        CL.29,cr0,0x2/gt ,taken=20%(20,80)
+    0| 000230 lwa      E91B0002   2     L4A       gr8=nreal(gr27,0)
+    0| 000234 rldicr   78C61F24   1     SLL8      gr6=gr6,3
+    0| 000238 lfs      C01C0094   1     LFS       fp0=+CONSTANT_AREA(gr28,148)
+    0| 00023C add      7D3D3214   1     A         gr9=gr29,gr6
+    0| 000240 fmr      FC200090   1     LRFL      fp1=fp0
+    0| 000244 lfs      C05C0098   1     LFS       fp2=+CONSTANT_AREA(gr28,152)
+    0| 000248 cmpwi    2C030001   1     C4        cr0=gr3,1
+    0| 00024C add      7CE74A14   1     A         gr7=gr7,gr9
+    0| 000250 add      7CA53A14   1     A         gr5=gr5,gr7
+    0| 000254 ori      60000000   1     NOP       
+    0| 000258 rldicr   79071764   1     SLL8      gr7=gr8,2
+    0| 00025C add      7D1E3A14   1     A         gr8=gr30,gr7
+    0| 000260 ori      60000000   1     NOP       
+    0| 000264 addi     38E80008   1     AI        gr7=gr8,8
+    0| 000268 addi     39080004   1     AI        gr8=gr8,4
+  210| 00026C bc       408100AC   0     BF        CL.90,cr0,0x2/gt ,taken=****
+    0|                              CL.63:
+  210| 000270 addi     3863FFFF   2     AI        gr3=gr3,-1
+    0| 000274 fadd     FCA1002A   1     AFL       fp5=fp1,fp0,fcr
+  210| 000278 addi     39240001   1     AI        gr9=gr4,1
+  196| 00027C bc       41860018   0     BT        CL.24,cr1,0x4/eq ,taken=50%(0,0)
+  196| 000280 cmplwi   28003237   2     CL4       cr0=gr0,12855
+  196| 000284 cmplwi   2B003234   1     CL4       cr6=gr0,12852
+  196| 000288 bc       419A000C   1     BT        CL.24,cr6,0x4/eq ,taken=50%(0,0)
+  208| 00028C addi     3884FFEC   2     AI        gr4=gr4,-20
+  196| 000290 bc       40820288   0     BF        CL.25,cr0,0x4/eq ,taken=50%(0,0)
+  196|                              CL.24:
+  199| 000294 lfs      C067FFF8   2     LFS       fp3=rdata[](gr7,-8)
+  200| 000298 lfs      C087FFFC   1     LFS       fp4=rdata[](gr7,-4)
+  199| 00029C stfd     D8650038   1     STFL      bufrf[](gr5,56)=fp3
+  200| 0002A0 stfd     D8850040   1     STFL      bufrf[](gr5,64)=fp4
+  198| 0002A4 stfd     D8250030   1     STFL      bufrf[](gr5,48)=fp1
+  209|                              CL.26:
+    0| 0002A8 fadd     FC25002A   1     AFL       fp1=fp5,fp0,fcr
+    0| 0002AC add      7CA62A14   1     A         gr5=gr6,gr5
+  210| 0002B0 rlwinm   5524003E   1     RN4       gr4=gr9,0,0xFFFFFFFF
+  210| 0002B4 addi     3863FFFF   1     AI        gr3=gr3,-1
+    0| 0002B8 addi     38E70008   1     AI        gr7=gr7,8
+  210| 0002BC addi     39240001   1     AI        gr9=gr4,1
+  196| 0002C0 cmplwi   28003234   1     CL4       cr0=gr0,12852
+  196| 0002C4 bc       41860014   0     BT        CL.65,cr1,0x4/eq ,taken=50%(0,0)
+  208| 0002C8 addi     3884FFEC   2     AI        gr4=gr4,-20
+  196| 0002CC cmplwi   2B003237   1     CL4       cr6=gr0,12855
+  196| 0002D0 crnor    4F42D042   1     CR_NOR    cr6=cr[06],0x4/eq ,0x4/eq ,0x4/eq 
+  196| 0002D4 bc       419A021C   0     BT        CL.66,cr6,0x4/eq ,taken=****
+  196|                              CL.65:
+  199| 0002D8 lfs      C067FFF8   2     LFS       fp3=rdata[](gr7,-8)
+  200| 0002DC lfs      C087FFFC   1     LFS       fp4=rdata[](gr7,-4)
+  198| 0002E0 stfd     D8A50030   1     STFL      bufrf[](gr5,48)=fp5
+  199| 0002E4 stfd     D8650038   1     STFL      bufrf[](gr5,56)=fp3
+  200| 0002E8 stfd     D8850040   1     STFL      bufrf[](gr5,64)=fp4
+    0| 0002EC ori      60000000   1     NOP       
+  209|                              CL.67:
+    0| 0002F0 cmpwi    2C030001   1     C4        cr0=gr3,1
+  210| 0002F4 rlwinm   5524003E   1     RN4       gr4=gr9,0,0xFFFFFFFF
+    0| 0002F8 addi     39080008   1     AI        gr8=gr8,8
+    0| 0002FC add      7CA62A14   1     A         gr5=gr6,gr5
+    0| 000300 addi     38E70008   1     AI        gr7=gr7,8
+    0| 000304 ori      60000000   1     NOP       
+    0| 000308 bc       4181FF68   0     BT        CL.63,cr0,0x2/gt ,taken=****
+    0| 00030C cmpwi    2C030000   2     C4        cr0=gr3,0
+    0| 000310 ori      60000000   1     NOP       
+  210| 000314 bc       4081005C   0     BF        CL.29,cr0,0x2/gt ,taken=****
+    0|                              CL.90:
+  196| 000318 cmplwi   2B003234   2     CL4       cr6=gr0,12852
+    0| 00031C ori      60000000   1     NOP       
+  194|                              CL.57:
+  210| 000320 addi     3863FFFF   1     AI        gr3=gr3,-1
+    0| 000324 fadd     FCA1002A   1     AFL       fp5=fp1,fp0,fcr
+  210| 000328 addi     39240001   1     AI        gr9=gr4,1
+  196| 00032C bc       41860014   0     BT        CL.58,cr1,0x4/eq ,taken=50%(0,0)
+  196| 000330 cmplwi   28003237   2     CL4       cr0=gr0,12855
+  196| 000334 bc       419A000C   0     BT        CL.58,cr6,0x4/eq ,taken=50%(0,0)
+  208| 000338 addi     3884FFEC   2     AI        gr4=gr4,-20
+  196| 00033C bc       40820190   0     BF        CL.59,cr0,0x4/eq ,taken=50%(0,0)
+  196|                              CL.58:
+  199| 000340 lfs      C067FFF8   2     LFS       fp3=rdata[](gr7,-8)
+  200| 000344 lfs      C087FFFC   1     LFS       fp4=rdata[](gr7,-4)
+  198| 000348 stfd     D8250030   1     STFL      bufrf[](gr5,48)=fp1
+  199| 00034C stfd     D8650038   1     STFL      bufrf[](gr5,56)=fp3
+  200| 000350 stfd     D8850040   1     STFL      bufrf[](gr5,64)=fp4
+  209|                              CL.60:
+    0| 000354 fmr      FC202890   1     LRFL      fp1=fp5
+  210| 000358 rlwinm   5524003E   1     RN4       gr4=gr9,0,0xFFFFFFFF
+  210| 00035C cmpwi    2C030000   1     C4        cr0=gr3,0
+    0| 000360 addi     39080004   1     AI        gr8=gr8,4
+    0| 000364 addi     38E70008   1     AI        gr7=gr7,8
+    0| 000368 add      7CA62A14   1     A         gr5=gr6,gr5
+  210| 00036C bc       4181FFB4   0     BT        CL.57,cr0,0x2/gt ,taken=80%(80,20)
+  210|                              CL.29:
+  215| 000370 rldic    7B04A308   2     RN8       gr4=gr24,20,0xFFFFFFFF00000
+  215| 000374 rldic    7B058408   1     RN8       gr5=gr24,16,0xFFFFFFFF0000
+  215| 000378 lwa      E80100A6   1     L4A       gr0=#MX_CONVF1_1(gr1,164)
+  215| 00037C lwa      E86100B6   1     L4A       gr3=#MX_CONVF1_2(gr1,180)
+  215| 000380 subf     7C852050   1     S         gr4=gr4,gr5
+  215| 000384 rldic    7B057488   1     RN8       gr5=gr24,14,0x3FFFFFFFC000
+  215| 000388 rldic    78066CC8   1     RN8       gr6=gr0,13,0x1FFFFFFFE000
+  215| 00038C rldic    78075D48   1     RN8       gr7=gr0,11,0x7FFFFFFF800
+  215| 000390 add      7C842A14   1     A         gr4=gr4,gr5
+  215| 000394 rldic    7B054DC8   1     RN8       gr5=gr24,9,0x1FFFFFFFE00
+  215| 000398 add      7CC63A14   1     A         gr6=gr6,gr7
+  215| 00039C rldic    78074608   1     RN8       gr7=gr0,8,0xFFFFFFFF00
+  215| 0003A0 add      7C842A14   1     A         gr4=gr4,gr5
+  215| 0003A4 rldic    7B053688   1     RN8       gr5=gr24,6,0x3FFFFFFFC0
+  215| 0003A8 subf     7CC73050   1     S         gr6=gr6,gr7
+  215| 0003AC rldic    78002708   1     RN8       gr0=gr0,4,0xFFFFFFFF0
+  215| 0003B0 rldic    78673E48   1     RN8       gr7=gr3,7,0x7FFFFFFF80
+  215| 0003B4 rldic    78682EC8   1     RN8       gr8=gr3,5,0x1FFFFFFFE0
+  215| 0003B8 add      7C842A14   1     A         gr4=gr4,gr5
+  215| 0003BC add      7C060214   1     A         gr0=gr6,gr0
+  215| 0003C0 subf     7CA83850   1     S         gr5=gr7,gr8
+  215| 0003C4 rldic    78631788   1     RN8       gr3=gr3,2,0x3FFFFFFFC
+  215| 0003C8 add      7C040214   1     A         gr0=gr4,gr0
+  215| 0003CC add      7C651A14   1     A         gr3=gr5,gr3
+  215| 0003D0 add      7C001A14   1     A         gr0=gr0,gr3
+  216| 0003D4 addi     38BD0030   1     AI        gr5=gr29,48
+  216| 0003D8 ld       E8610138   1     L8        gr3=#parameter_store0(gr1,312)
+  215| 0003DC add      7C00BA14   1     A         gr0=gr0,gr23
+  215| 0003E0 stw      901D0030   1     ST4Z      idate(gr29,48)=gr0
+  216| 0003E4 ori      63E40000   1     LR        gr4=gr31
+  216| 0003E8 addi     38C00008   1     LI        gr6=8
+    0| 0003EC ori      60000000   1     NOP       
+  216| 0003F0 bl       4BFFFC11   0     CALL      openmb,4,lubfr",gr3,subset",gr4,idate",gr5,gr6,openmb",fcr",gr1,cr[01567]",gr0",gr3"-gr12",fp0"-fp13",mq",lr",fcr",xer",fsr",ca",ctr"
+  216| 0003F4 ori      60000000   1
+  217| 0003F8 addi     38000064   1     LI        gr0=100
+  217| 0003FC stw      92C10078   1     ST4Z      T_12(gr1,120)=gr22
+  217| 000400 addi     38FD0034   1     AI        gr7=gr29,52
+  217| 000404 ld       E8610138   1     L8        gr3=#parameter_store0(gr1,312)
+  217| 000408 addi     38C10078   1     AI        gr6=gr1,120
+  217| 00040C addi     38A10074   1     AI        gr5=gr1,116
+  217| 000410 addi     389D0038   1     AI        gr4=gr29,56
+  217| 000414 ori      63E80000   1     LR        gr8=gr31
+  217| 000418 addi     39200008   1     LI        gr9=8
+  217| 00041C stw      90010074   1     ST4Z      T_11(gr1,116)=gr0
+  217| 000420 bl       4BFFFBE1   0     CALL      ufbseq,7,lubfr",gr3,bufrf[]",gr4,T_11",gr5,T_12",gr6,iret",gr7,subset",gr8,gr9,ufbseq",fcr",gr1,cr[01567]",gr0",gr3"-gr12",fp0"-fp13",mq",lr",fcr",xer",fsr",ca",ctr"
+  217| 000424 ori      60000000   1
+  219| 000428 ld       E8620018   1     L8        gr3=.switches(gr2,0)
+  219| 00042C ld       E81C00A0   1     L8        gr0=+CONSTANT_AREA(gr28,160)
+  218| 000430 lwz      80990000   1     L4Z       gr4=nrep(gr25,0)
+  218| 000434 addi     38840001   2     AI        gr4=gr4,1
+  218| 000438 stw      90990000   1     ST4Z      nrep(gr25,0)=gr4
+    0| 00043C ori      60210000   1     XNOP      
+  219| 000440 ld       E8630000   1     L8        gr3=<s80:d0:l8>(gr3,0)
+  219| 000444 cmpld    7C230040   2     CL8       cr0=gr3,gr0
+  219| 000448 bc       41820010   1     BT        CL.31,cr0,0x4/eq ,taken=30%(30,70)
+  219| 00044C ld       E81C00A8   1     L8        gr0=+CONSTANT_AREA(gr28,168)
+  219| 000450 cmpld    7C230040   2     CL8       cr0=gr3,gr0
+  219| 000454 bc       4082004C   1     BF        CL.32,cr0,0x4/eq ,taken=50%(0,0)
+  219|                              CL.31:
+  220| 000458 ld       E8610138   1     L8        gr3=#parameter_store0(gr1,312)
+  220| 00045C bl       4BFFFBA5   0     CALL      writcp,1,lubfr",gr3,writcp",fcr",gr1,cr[01567]",gr0",gr3"-gr12",fp0"-fp13",mq",lr",fcr",xer",fsr",ca",ctr"
+  220| 000460 ori      60000000   1
+  229| 000464 ld       E98101B0   1     L8        gr12=#stack(gr1,432)
+  229| 000468 addi     382101A0   1     AI        gr1=gr1,416
+  229| 00046C mtspr    7D8803A6   1     LLR       lr=gr12
+  229| 000470 ld       EAA1FFA8   1     L8        gr21=#stack(gr1,-88)
+  229| 000474 ld       EAC1FFB0   1     L8        gr22=#stack(gr1,-80)
+  229| 000478 ld       EAE1FFB8   1     L8        gr23=#stack(gr1,-72)
+  229| 00047C ld       EB01FFC0   1     L8        gr24=#stack(gr1,-64)
+    0|                              CL.94:
+  229| 000480 ld       EB21FFC8   1     L8        gr25=#stack(gr1,-56)
+  229| 000484 ld       EB41FFD0   1     L8        gr26=#stack(gr1,-48)
+  229| 000488 ld       EB61FFD8   1     L8        gr27=#stack(gr1,-40)
+  229| 00048C ld       EB81FFE0   1     L8        gr28=#stack(gr1,-32)
+  229| 000490 ld       EBA1FFE8   1     L8        gr29=#stack(gr1,-24)
+  229| 000494 ld       EBC1FFF0   1     L8        gr30=#stack(gr1,-16)
+  229| 000498 ld       EBE1FFF8   1     L8        gr31=#stack(gr1,-8)
+  229| 00049C bclr     4E800020   0     BA        lr
+  221|                              CL.32:
+  222| 0004A0 ld       E8610138   1     L8        gr3=#parameter_store0(gr1,312)
+  222| 0004A4 bl       4BFFFB5D   0     CALL      writsb,1,lubfr",gr3,writsb",fcr",gr1,cr[01567]",gr0",gr3"-gr12",fp0"-fp13",mq",lr",fcr",xer",fsr",ca",ctr"
+  222| 0004A8 ori      60000000   1
+  229| 0004AC ld       E98101B0   1     L8        gr12=#stack(gr1,432)
+  229| 0004B0 addi     382101A0   1     AI        gr1=gr1,416
+  229| 0004B4 mtspr    7D8803A6   1     LLR       lr=gr12
+  229| 0004B8 ld       EAA1FFA8   1     L8        gr21=#stack(gr1,-88)
+  229| 0004BC ld       EAC1FFB0   1     L8        gr22=#stack(gr1,-80)
+  229| 0004C0 ld       EAE1FFB8   1     L8        gr23=#stack(gr1,-72)
+  229| 0004C4 ld       EB01FFC0   1     L8        gr24=#stack(gr1,-64)
+    0| 0004C8 b        4BFFFFB8   0     B         CL.94,-1
+  201|                              CL.59:
+  208| 0004CC cntlzw   7C840034   1     CNTLZ4    gr4=gr4
+  203| 0004D0 lfs      C068FFFC   1     LFS       fp3=rdata[](gr8,-4)
+  202| 0004D4 stfd     D8250030   1     STFL      bufrf[](gr5,48)=fp1
+  203| 0004D8 stfd     D8650038   1     STFL      bufrf[](gr5,56)=fp3
+  208| 0004DC rlwinm   548AD97E   1     SRL4      gr10=gr4,5
+  208| 0004E0 and.     7EA45039   1     N_R       gr4,cr0=gr21,gr10
+  208| 0004E4 bc       4182FE70   1     BT        CL.60,cr0,0x4/eq ,taken=50%(0,0)
+  208| 0004E8 stfd     D8450038   2     STFL      bufrf[](gr5,56)=fp2
+    0| 0004EC b        4BFFFE68   0     B         CL.60,-1
+  201|                              CL.66:
+  208| 0004F0 cntlzw   7C840034   1     CNTLZ4    gr4=gr4
+  202| 0004F4 stfd     D8A50030   1     STFL      bufrf[](gr5,48)=fp5
+  203| 0004F8 lfs      C0680000   1     LFS       fp3=rdata[](gr8,0)
+    0| 0004FC ori      60000000   1     NOP       
+  203| 000500 stfd     D8650038   1     STFL      bufrf[](gr5,56)=fp3
+  208| 000504 rlwinm   548AD97E   1     SRL4      gr10=gr4,5
+  208| 000508 and.     7EA45039   1     N_R       gr4,cr0=gr21,gr10
+  208| 00050C bc       4182FDE4   1     BT        CL.67,cr0,0x4/eq ,taken=50%(0,0)
+  208| 000510 stfd     D8450038   2     STFL      bufrf[](gr5,56)=fp2
+    0| 000514 b        4BFFFDDC   0     B         CL.67,-1
+  201|                              CL.25:
+  208| 000518 cntlzw   7C840034   1     CNTLZ4    gr4=gr4
+  203| 00051C lfs      C068FFFC   1     LFS       fp3=rdata[](gr8,-4)
+  202| 000520 stfd     D8250030   1     STFL      bufrf[](gr5,48)=fp1
+  203| 000524 stfd     D8650038   1     STFL      bufrf[](gr5,56)=fp3
+  208| 000528 rlwinm   548AD97E   1     SRL4      gr10=gr4,5
+  208| 00052C and.     7EA45039   1     N_R       gr4,cr0=gr21,gr10
+  208| 000530 bc       4182FD78   1     BT        CL.26,cr0,0x4/eq ,taken=50%(0,0)
+  208| 000534 stfd     D8450038   2     STFL      bufrf[](gr5,56)=fp2
+    0| 000538 b        4BFFFD70   0     B         CL.26,-1
+  133|                              CL.18:
+  133| 00053C cmpwi    2C030001   1     C4        cr0=gr3,1
+  133| 000540 bc       40820010   1     BF        CL.39,cr0,0x4/eq ,taken=50%(0,0)
+  134| 000544 addi     38E00000   2     LI        gr7=0
+  134| 000548 stw      90FD001C   1     ST4Z      landsea(gr29,28)=gr7
+    0| 00054C b        4BFFFBC4   0     B         CL.19,-1
+    0|                              CL.39:
+    0| 000550 lwa      E8FD001E   1     L4A       gr7=landsea(gr29,28)
+    0| 000554 b        4BFFFBBC   0     B         CL.19,-1
+  109|                              CL.4:
+  109| 000558 cmplwi   28003232   1     CL4       cr0=gr0,12850
+  109| 00055C bc       40820010   1     BF        CL.6,cr0,0x4/eq ,taken=50%(0,0)
+  110| 000560 addi     3880026F   2     LI        gr4=623
+  110| 000564 stw      909D0014   1     ST4Z      jcode(gr29,20)=gr4
+  111| 000568 b        4BFFFB80   0     B         CL.5,-1
+  111|                              CL.6:
+  111| 00056C bc       40860014   0     BF        CL.8,cr1,0x4/eq ,taken=50%(0,0)
+  112| 000570 addi     3880023A   2     LI        gr4=570
+  112| 000574 stw      909D0014   1     ST4Z      jcode(gr29,20)=gr4
+    0| 000578 ori      60000000   1     NOP       
+  113| 00057C b        4BFFFB6C   0     B         CL.5,-1
+  113|                              CL.8:
+  113| 000580 cmplwi   28003234   1     CL4       cr0=gr0,12852
+  113| 000584 bc       40820010   1     BF        CL.10,cr0,0x4/eq ,taken=50%(0,0)
+  114| 000588 addi     3880023E   2     LI        gr4=574
+  114| 00058C stw      909D0014   1     ST4Z      jcode(gr29,20)=gr4
+  115| 000590 b        4BFFFB58   0     B         CL.5,-1
+  115|                              CL.10:
+  115| 000594 cmplwi   28003235   1     CL4       cr0=gr0,12853
+  115| 000598 bc       40820010   1     BF        CL.12,cr0,0x4/eq ,taken=50%(0,0)
+  116| 00059C addi     3880025E   2     LI        gr4=606
+  116| 0005A0 stw      909D0014   1     ST4Z      jcode(gr29,20)=gr4
+  117| 0005A4 b        4BFFFB44   0     B         CL.5,-1
+  117|                              CL.12:
+  117| 0005A8 cmplwi   28003237   1     CL4       cr0=gr0,12855
+  117| 0005AC bc       40820010   1     BF        CL.14,cr0,0x4/eq ,taken=50%(0,0)
+  118| 0005B0 addi     388000CB   2     LI        gr4=203
+  118| 0005B4 stw      909D0014   1     ST4Z      jcode(gr29,20)=gr4
+  119| 0005B8 b        4BFFFB30   0     B         CL.5,-1
+  119|                              CL.14:
+  119| 0005BC cmplwi   28003238   1     CL4       cr0=gr0,12856
+  119| 0005C0 bc       40820010   1     BF        CL.16,cr0,0x4/eq ,taken=10%(10,90)
+  120| 0005C4 addi     3880025F   2     LI        gr4=607
+  120| 0005C8 stw      909D0014   1     ST4Z      jcode(gr29,20)=gr4
+  121| 0005CC b        4BFFFB1C   0     B         CL.5,-1
+  121|                              CL.16:
+  122| 0005D0 ld       E8A20020   1     L8        gr5=.$STATIC(gr2,0)
+  122| 0005D4 addi     38600006   1     LI        gr3=6
+  122| 0005D8 addi     38800101   1     LI        gr4=257
+  122| 0005DC addi     38C00400   1     LI        gr6=1024
+  122| 0005E0 addi     38E00000   1     LI        gr7=0
+  122| 0005E4 addi     39000000   1     LI        gr8=0
+  122| 0005E8 addi     39200000   1     LI        gr9=0
+  122| 0005EC bl       4BFFFA15   0     CALL      gr3=_xlfBeginIO,7,gr3,gr4,#9",gr5-gr9,_xlfBeginIO",fcr",gr1,cr[01567]",gr0",gr4"-gr12",fp0"-fp13",mq",lr",fcr",xer",fsr",ca",ctr"
+  122| 0005F0 ori      60000000   1
+  122| 0005F4 std      F8610140   1     ST8       #parameter_store1(gr1,320)=gr3
+  122| 0005F8 addi     389C0058   1     AI        gr4=gr28,88
+  122| 0005FC addi     38A0001F   1     LI        gr5=31
+  122| 000600 addi     38C00001   1     LI        gr6=1
+    0| 000604 ori      60210000   1     XNOP      
+  122| 000608 bl       4BFFF9F9   0     CALL      _xlfWriteLDChar,4,gr3-gr6,_xlfWriteLDChar",fcr",gr1,cr[01567]",gr0",gr3"-gr12",fp0"-fp13",mq",lr",fcr",xer",fsr",ca",ctr"
+  122| 00060C ori      60000000   1
+  122| 000610 lwz      801B0000   1     L4Z       gr0=nreal(gr27,0)
+  122| 000614 ori      63C40000   1     LR        gr4=gr30
+  122| 000618 ld       E8FC0078   1     L8        gr7=+CONSTANT_AREA(gr28,120)
+  122| 00061C addi     38C00004   1     LI        gr6=4
+  122| 000620 srawi    7C05FE70   1     SRA4      gr5=gr0,31,ca"
+  122| 000624 andc     7C002878   1     ANDC      gr0=gr0,gr5
+  122| 000628 extsw    7C0007B4   1     EXTS4     gr0=gr0
+  122| 00062C rldicr   78051764   1     SLL8      gr5=gr0,2
+    0| 000630 ori      60210000   1     XNOP      
+  122| 000634 ld       E8610140   1     L8        gr3=#parameter_store1(gr1,320)
+  122| 000638 bl       4BFFF9C9   0     CALL      _xlfWriteLDArray,5,gr3,rdata[],gr4-gr7,_xlfWriteLDArray",fcr",gr1,cr[01567]",gr0",gr3"-gr12",fp0"-fp13",mq",lr",fcr",xer",fsr",ca",ctr"
+  122| 00063C ori      60000000   1
+  122| 000640 ld       E8610140   1     L8        gr3=#parameter_store1(gr1,320)
+    0| 000644 ori      60210000   1     XNOP      
+  122| 000648 bl       4BFFF9B9   0     CALL      gr3=_xlfEndIO,1,gr3,_xlfEndIO",fcr",gr1,cr[01567]",gr0",gr4"-gr12",fp0"-fp13",mq",lr",fcr",xer",fsr",ca",ctr"
+  122| 00064C ori      60000000   1
+  124| 000650 addi     3861007C   1     AI        gr3=gr1,124
+  124| 000654 ld       E81C0080   1     L8        gr0=+CONSTANT_AREA(gr28,128)
+  124| 000658 lha      A8BC008C   1     L2A       gr5=+CONSTANT_AREA(gr28,140)
+  124| 00065C addi     3880000E   1     LI        gr4=14
+  124| 000660 std      F801007C   1     ST8       <a1:d12|4:l4>#115|8:l4>#116_1(gr1,124)=gr0
+  124| 000664 sth      B0A10088   1     ST2Z      <a1:d136:l2>(gr1,136)=gr5
+  124| 000668 lwz      801C0088   1     L4Z       gr0=+CONSTANT_AREA(gr28,136)
+  124| 00066C stw      90010084   2     ST4A      <a1:d132:l4>(gr1,132)=gr0
+    0| 000670 ori      60210000   1     XNOP      
+    0| 000674 ori      60000000   1     NOP       
+  124| 000678 bl       4BFFF989   0     CALL      w3tage,2,T_4",gr3,gr4,w3tage",fcr",gr1,cr[01567]",gr0",gr3"-gr12",fp0"-fp13",mq",lr",fcr",xer",fsr",ca",ctr"
+  124| 00067C ori      60000000   1
+  125| 000680 addi     38000007   1     LI        gr0=7
+  125| 000684 addi     38610070   1     AI        gr3=gr1,112
+  125| 000688 stw      90010070   1     ST4Z      T_5(gr1,112)=gr0
+  125| 00068C bl       4BFFF975   0     CALL      errexit,1,T_5",gr3,errexit",fcr",gr1,cr[01567]",gr0",gr3"-gr12",fp0"-fp13",mq",lr",fcr",xer",fsr",ca",ctr"
+  125| 000690 ori      60000000   1
+    0| 000694 lhz      A01F0006   1     L2Z       gr0=subset(gr31,6)
+    0| 000698 lwa      E89D0016   1     L4A       gr4=jcode(gr29,20)
+    0| 00069C cmplwi   28803233   1     CL4       cr1=gr0,12851
+    0| 0006A0 b        4BFFFA48   0     B         CL.5,-1
+  105|                              CL.2:
+  105| 0006A4 addi     3AA00000   1     LI        gr21=0
+    0| 0006A8 addi     3AC00001   1     LI        gr22=1
+    0| 0006AC b        4BFFFA24   0     B         CL.3,-1
+     |               Tag Table
+     | 0006B0        00000000 00012241 800B0700 00000000 000006B0 00066275
+     | 0006C8        66723162
+     |               Instruction count          428
+     |               Straight-line exec time      0
+     |               Constant Area
+     | 000000        51BA43B7 2F677066 732F632F 6E636F2F 6F70732F 6E777465
+     | 000018        73742F73 6F72632F 62756672 5F747261 6E616D73 75612E66
+     | 000030        642F6275 66723162 2E664942 4D204942 4E433032 31303231
+     | 000048        4E433032 31303235 4E433032 31303238 2A2A2055 4E4B4E4F
+     | 000060        574E2053 4154454C 4C495445 20494E53 5452554D 454E5449
+     | 000078        00000000 80000004 42554652 5F545241 4E484952 53324942
+     | 000090        447A0000 3F800000 51BA43B7 49424D20 59455320 20202020
+     | 0000A8        79657320 20202020
+
+ 
+ 
+>>>>> FILE TABLE SECTION <<<<<
+ 
+ 
+                                       FILE CREATION        FROM
+FILE NO   FILENAME                    DATE       TIME       FILE    LINE
+     0    bufr1b.f                    02/05/13   15:43:00
+ 
+ 
+>>>>> COMPILATION EPILOGUE SECTION <<<<<
+ 
+ 
+FORTRAN Summary of Diagnosed Conditions
+ 
+TOTAL   UNRECOVERABLE  SEVERE       ERROR     WARNING    INFORMATIONAL
+               (U)       (S)         (E)        (W)          (I)
+    0           0         0           0          0            0
+ 
+ 
+    Source records read.......................................     229
+1501-510  Compilation successful for file bufr1b.f.
+1501-543  Object file created.
