@@ -167,7 +167,7 @@ c------201409291400--------------------
      & beginT,endT,lunintxt
 c------201409291400--------------------
 
-
+      lastT=0
       call w3tagb('BUFR_TRANAMSUA',2013,0017,0068,'NP22')
 
       print *
@@ -338,7 +338,7 @@ ccc-------------201409291400--------------------
       real(real_64) eta(mch),tref(mch),badr(mch),badtb(mch),dt(mch)
       real(real_64) badta(mch)
 
-      integer(8)::stat,beginT,endT,recT
+      integer(8)::stat,beginT,endT,recT,lastT
 
       data myoutTb        / 101 /
       data myoutTa        / 102 /
@@ -1133,7 +1133,9 @@ c---------------add 201410290000-------------------------
      x              INT(bdata(5),8)*INT(1e6,8)+
      x              INT(bdata(6),8)*INT(1e4,8)+
      x              INT(bdata(7),8)*INT(1e2)+INT(bdata(8))
+               if(recT<=lastT) goto 1200
                if(recT<beginT .OR. recT>endT) goto 1200
+               lastT=rectT
 c--------------------------------------------------------
 
 
