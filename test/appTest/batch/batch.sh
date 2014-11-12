@@ -15,7 +15,7 @@ ifLY(){
 
 
 nextDay(){
-    y1=${1:0:4}; m1=${1:4:2}; d1=${1:6:2}
+    y1=$((10#${1:0:4})); m1=$((10#${1:4:2})); d1=$((10#${1:6:2}))
     y2=$y1; m2=$m1; d2=`expr $d1 + 1`
 
     if [ `ifLY $y1` -eq 1 ];then
@@ -45,7 +45,7 @@ nextDay(){
 }
 
 lastDay(){
-    y1=${1:0:4}; m1=${1:4:2}; d1=${1:6:2}
+    y1=$((10#${1:0:4})); m1=$((10#${1:4:2})); d1=$((10#${1:6:2}))
     y2=$y1; m2=$m1; d2=`expr $d1 - 1`
 
     if [ `ifLY $y1` -eq 1 ];then
@@ -80,8 +80,9 @@ lastDay(){
 
 timeAdd(){
 #timeAdd 20140101120131 030200
-    Y1=${1:0:4}; M1=${1:4:2}; D1=${1:6:2}; h1=${1:8:2}; m1=${1:10:2}; s1=${1:12:2}
-    dh=${2:0:2}; dm=${2:2:2}; ds=${2:4:2}
+    Y1=$((10#${1:0:4})); M1=$((10#${1:4:2})); D1=$((10#${1:6:2}))
+    h1=$((10#${1:8:2})); m1=$((10#${1:10:2})); s1=$((10#${1:12:2}))
+    dh=$((10#${2:0:2})); dm=$((10#${2:2:2})); ds=$((10#${2:4:2}))
 
     sec1=`expr $h1 \* 3600 + $m1 \* 60 + $s1`
     dsec=`expr $dh \* 3600 + $dm \* 60 + $ds`
@@ -92,7 +93,11 @@ timeAdd(){
     minu=`expr $sec2 % 3600 / 60`
     sec=`expr $sec2 % 3600 % 60`
 
+    Y1=`printf "%02d" $Y1`
+    M1=`printf "%02d" $M1`
+    D1=`printf "%02d" $D1`
     date=$Y1$M1$D1
+
     for((i=0;i<$day;i++));do
         date=`nextDay $date`
     done
@@ -106,14 +111,18 @@ timeAdd(){
 
 timeMinus(){
 #timeMinus 20140101120131 030200
-    Y1=${1:0:4}; M1=${1:4:2}; D1=${1:6:2}; h1=${1:8:2}; m1=${1:10:2}; s1=${1:12:2}
-    dh=${2:0:2}; dm=${2:2:2}; ds=${2:4:2}
+    Y1=$((10#${1:0:4})); M1=$((10#${1:4:2})); D1=$((10#${1:6:2}))
+    h1=$((10#${1:8:2})); m1=$((10#${1:10:2})); s1=$((10#${1:12:2}))
+    dh=$((10#${2:0:2})); dm=$((10#${2:2:2})); ds=$((10#${2:4:2}))
 
     sec1=`expr $h1 \* 3600 + $m1 \* 60 + $s1`
     dsec=`expr $dh \* 3600 + $dm \* 60 + $ds`
 
     dday=`expr $dsec / 3600 / 24 + 1`
 
+    Y1=`printf "%02d" $Y1`
+    M1=`printf "%02d" $M1`
+    D1=`printf "%02d" $D1`
     date=$Y1$M1$D1
     for((i=0;i<$dday;i++));do
         date=`lastDay $date`
@@ -129,20 +138,42 @@ timeMinus(){
     echo `timeAdd ${date}000000 $dh2$dm2$ds2`
 }
 
-startT=20000101
-endT=20141231
+###################################################################
+
+startT=20130501
+endT=20131231
 beforeT=030000;afterT=030000
 nowT=$startT
 
 timeP=( 000000 060000 120000 180000 ) 
 
+mkdir bufrOut
+
 while [ $nowT -ne $endT ];do
-#    for tP in ${timeP[*]};do
-#        time1=`timeMinus $nowT$tP $beforeT` 
-#        time2=`timeAdd $nowT$tP $afterT` 
-#        echo $time1-$time2
-#    done
+    for tP in ${timeP[*]};do
+        time1=`timeMinus $nowT$tP $beforeT` 
+        time2=`timeAdd $nowT$tP $afterT` 
+        echo $time1-$time2
+
+        mkdir tran_$nowT$tP
+        cd tran_$nowT$tP
+
+cat <<EOF >nameList.txt
+&input
+intxt="fileList.txt" outfile="out" coefile="eta.txt" compress="NO" process_Tb="YES" process_Ta="YES" beginT=$time1 endT=$time2 /
+EOF
+
+        cp ../OBSI_bufr_tranamsua.exe ./
+        cp ../bufrtab.021 ./
+        cp ../eta.txt ./
+        cp ../lowtopog.dat ./
+        cp ../fileList.txt ./
+        ./OBSI_bufr_tranamsua.exe < nameList.txt
+        cp fort.52 ../bufrOut/fort.$nowT$tP
+
+        cd ../
+
+    done
     nowT=`nextDay $nowT`
-    echo $nowT
 done
 
